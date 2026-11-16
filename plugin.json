@@ -1,0 +1,11 @@
+{
+  "name": "token-tracker",
+  "displayName": "Token Tracker",
+  "description": "Track and visualize token consumption (input, output, cache read) for each Antigravity task and conversation.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Show me how many tokens this conversation has used so far",
+    "Which of my recent tasks consumed the most tokens?",
+    "Open the Token Tracker side panel"
+  ]
+}

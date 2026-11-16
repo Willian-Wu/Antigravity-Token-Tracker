@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Tracker</title>
+  <script src="/preload.js"></script>
+  <link rel="stylesheet" href="/styles.css?v=6">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-top">
+        <div class="brand">
+          <span class="brand-dot"></span>
+          <h1>Token Tracker</h1>
+        </div>
+        <div class="header-actions">
+          <button id="settings-btn" class="icon-btn" title="Hook 摘要设置" aria-expanded="false">⚙</button>
+          <button id="refresh-btn" class="icon-btn" title="刷新">↻</button>
+        </div>
+      </div>
+      <div id="settings-panel" class="settings-panel" hidden>
+        <div class="settings-title">
+          <span>Hook 摘要配置</span>
+          <span id="settings-status" class="muted"></span>
+        </div>
+        <label class="toggle-row">
+          <span>显示本会话累计</span>
+          <input type="checkbox" id="opt-session-total">
+        </label>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="current" role="tab" aria-selected="true">当前任务</button>
+        <button class="tab" data-tab="history" role="tab" aria-selected="false">全部任务</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="view-current" class="view active">
+        <div id="current-header" class="conv-banner"></div>
+        <div id="current-cards" class="stat-grid"></div>
+        <div class="section-title">
+          <span>轮次明细 (Turns)</span>
+          <span id="turn-count" class="muted"></span>
+        </div>
+        <div id="turns-list" class="list"></div>
+      </section>
+
+      <section id="view-history" class="view">
+        <div id="global-cards" class="stat-grid"></div>
+        <div id="trend-chart" class="chart-card"></div>
+        <div class="toolbar">
+          <input id="search-input" class="search" type="search" placeholder="搜索任务提示词或 ID…">
+          <select id="sort-select" class="select">
+            <option value="recent">最近更新</option>
+            <option value="total">总 Token 最多</option>
+            <option value="billed">非缓存最多</option>
+          </select>
+        </div>
+        <div id="history-list" class="list"></div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js?v=8"></script>
+</body>
+</html>
