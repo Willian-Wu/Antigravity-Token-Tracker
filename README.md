@@ -2,6 +2,16 @@
 
 一个用于 [Antigravity](https://antigravity.google/) 的轻量级插件，用于统计、追踪并可视化每个任务与会话的 Token 消耗（Input、Output、Cache Read）。
 
+## 界面预览
+
+### 侧边栏统计面板
+![Token Tracker 侧边栏面板](./assets/screenshot-panel.png)
+
+### 插件详情与快捷入口
+![Antigravity 插件详情页](./assets/screenshot-plugin.png)
+
+![Extensions 菜单入口](./assets/screenshot-extensions.png)
+
 ## 功能特性
 
 - **每轮自动摘要（PostInvocation Hook）**：每次对话轮次结束后，自动在聊天中展示本轮 Token 消耗（Total / In / Out / Cache）以及当前会话累计消耗，并附带一键打开详情面板的链接。
@@ -42,7 +52,7 @@ token-tracker/
 将本仓库克隆或软链接到 Antigravity 的插件目录 `~/.gemini/config/plugins/token-tracker`：
 
 ```bash
-git clone https://github.com/<your-username>/token-tracker.git ~/.gemini/config/plugins/token-tracker
+git clone https://github.com/Willian-Wu/Antigravity-Token-Tracker.git ~/.gemini/config/plugins/token-tracker
 ```
 
 确保系统已安装 Node.js（支持 ES Module，建议 Node 18+），然后在 Antigravity 中启用 `token-tracker` 插件即可。
