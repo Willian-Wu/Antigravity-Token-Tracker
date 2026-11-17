@@ -9,6 +9,9 @@ const state = {
   sort: 'recent',
   chartMode: 'daily', // 'daily' | 'hourly'
   chartMetric: 'total', // 'total' | 'billed'
+  contextConvId: null,
+  contextStepIdx: null,
+  contextPinned: false,
   data: null,
 };
 
@@ -60,23 +63,75 @@ function esc(s) {
     .replaceAll('"', '&quot;');
 }
 
-function renderCards(el, stats) {
+function renderSparkline(values, color) {
+  if (!Array.isArray(values) || values.length < 2) return '';
+  const nums = values.map((v) => Math.max(0, Number(v) || 0));
+  const max = Math.max(...nums);
+  const min = Math.min(...nums);
+  const span = max - min || 1;
+  const w = 54;
+  const h = 22;
+  const pad = 2;
+  const pts = nums.map((v, i) => {
+    const x = (i / (nums.length - 1)) * (w - pad * 2) + pad;
+    const y = h - pad - ((v - min) / span) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return `
+    <svg class="sparkline" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+      <polyline fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />
+    </svg>
+  `;
+}
+
+function renderCards(el, stats, sparkSeries = null) {
+  const total = Number(stats.totalTokens) || 0;
+  const inp = Number(stats.inputTokens) || 0;
+  const out = Number(stats.outputTokens) || 0;
+  const cache = Number(stats.cacheReadTokens) || 0;
+  const billed = inp + out;
+  const hitDenom = inp + cache;
+  const hitRate = hitDenom > 0 ? ((cache / hitDenom) * 100).toFixed(1) : '0.0';
+  const inPct = total > 0 ? ((inp / total) * 100).toFixed(1) : '0.0';
+  const outPct = total > 0 ? ((out / total) * 100).toFixed(1) : '0.0';
+
+  const sTotal = sparkSeries?.total || null;
+  const sInp = sparkSeries?.inp || null;
+  const sOut = sparkSeries?.out || null;
+  const sCache = sparkSeries?.cache || null;
+
   el.innerHTML = `
-    <div class="stat-card">
+    <div class="stat-card card-total">
       <div class="stat-label"><span class="dot dot-total"></span>总计 (Total)</div>
-      <div class="stat-value" title="${fmtExact(stats.totalTokens)}">${fmt(stats.totalTokens)}</div>
+      <div class="stat-mid">
+        <div class="stat-value" title="${fmtExact(total)}">${fmt(total)}</div>
+        ${renderSparkline(sTotal, 'var(--accent)')}
+      </div>
+      <div class="stat-sub">非缓存 ${fmt(billed)}</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card card-input">
       <div class="stat-label"><span class="dot dot-input"></span>输入 (Input)</div>
-      <div class="stat-value" title="${fmtExact(stats.inputTokens)}">${fmt(stats.inputTokens)}</div>
+      <div class="stat-mid">
+        <div class="stat-value" title="${fmtExact(inp)}">${fmt(inp)}</div>
+        ${renderSparkline(sInp, 'var(--input-c)')}
+      </div>
+      <div class="stat-sub">占比 ${inPct}%</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card card-output">
       <div class="stat-label"><span class="dot dot-output"></span>输出 (Output)</div>
-      <div class="stat-value" title="${fmtExact(stats.outputTokens)}">${fmt(stats.outputTokens)}</div>
+      <div class="stat-mid">
+        <div class="stat-value" title="${fmtExact(out)}">${fmt(out)}</div>
+        ${renderSparkline(sOut, 'var(--output-c)')}
+      </div>
+      <div class="stat-sub">占比 ${outPct}%</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card card-cache">
       <div class="stat-label"><span class="dot dot-cache"></span>缓存命中 (Cache)</div>
-      <div class="stat-value" title="${fmtExact(stats.cacheReadTokens)}">${fmt(stats.cacheReadTokens)}</div>
+      <div class="stat-mid">
+        <div class="stat-value" title="${fmtExact(cache)}">${fmt(cache)}</div>
+        ${renderSparkline(sCache, 'var(--cache-c)')}
+      </div>
+      <div class="stat-sub">命中率 ${hitRate}%</div>
     </div>
   `;
 }
@@ -94,6 +149,130 @@ function renderBar(inp, out, cache) {
       <div class="bar-cache" style="width:${pCache}%"></div>
     </div>
   `;
+}
+
+function renderContextChart(cur) {
+  const el = document.getElementById('context-chart');
+  if (!el) return;
+  const steps = cur?.contextSteps;
+  if (!Array.isArray(steps) || steps.length < 2) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+
+  el.hidden = false;
+  if (state.contextConvId !== cur.id) {
+    state.contextConvId = cur.id;
+    state.contextStepIdx = steps.length - 1;
+    state.contextPinned = false;
+  } else if (!state.contextPinned || state.contextStepIdx == null || state.contextStepIdx >= steps.length) {
+    state.contextStepIdx = steps.length - 1;
+  }
+
+  const n = steps.length;
+  const activeIdx = Math.max(0, Math.min(n - 1, state.contextStepIdx));
+  const peak = Math.max(...steps.map((s) => s.context), 1);
+  const maxVal = peak * 1.12;
+  const latest = steps[n - 1];
+
+  const W = 320;
+  const H = 92;
+  const padL = 4;
+  const padR = 36;
+  const padT = 8;
+  const padB = 6;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const coords = steps.map((s, i) => {
+    const x = padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+    const y = padT + plotH - (s.context / maxVal) * plotH;
+    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+  });
+
+  const lineD = coords.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const areaD = `${lineD} L ${coords[n - 1].x} ${padT + plotH} L ${coords[0].x} ${padT + plotH} Z`;
+  const midY = (padT + plotH / 2).toFixed(1);
+  const baseY = (padT + plotH).toFixed(1);
+
+  el.innerHTML = `
+    <div class="chart-head">
+      <div class="chart-title">
+        <span>上下文增长</span>
+        <span class="muted">当前 ${fmt(latest.context)} · 峰值 ${fmt(peak)}</span>
+      </div>
+      <span class="ctx-step-badge" id="ctx-step-badge">${activeIdx + 1}/${n}</span>
+    </div>
+    <div class="ctx-svg-wrap">
+      <svg class="ctx-svg" id="ctx-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="ctxGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#059669" stop-opacity="0.32" />
+            <stop offset="100%" stop-color="#059669" stop-opacity="0.02" />
+          </linearGradient>
+        </defs>
+        <line x1="${padL}" y1="${padT}" x2="${padL + plotW}" y2="${padT}" stroke="currentColor" stroke-opacity="0.14" stroke-dasharray="2 2" />
+        <line x1="${padL}" y1="${midY}" x2="${padL + plotW}" y2="${midY}" stroke="currentColor" stroke-opacity="0.14" stroke-dasharray="2 2" />
+        <line x1="${padL}" y1="${baseY}" x2="${padL + plotW}" y2="${baseY}" stroke="currentColor" stroke-opacity="0.2" />
+        <text x="${W - 2}" y="${padT + 4}" text-anchor="end" fill="currentColor" fill-opacity="0.55" font-size="9">${fmt(peak)}</text>
+        <text x="${W - 2}" y="${Number(midY) + 3}" text-anchor="end" fill="currentColor" fill-opacity="0.55" font-size="9">${fmt(Math.round(peak / 2))}</text>
+        <path d="${areaD}" fill="url(#ctxGrad)" />
+        <path d="${lineD}" fill="none" stroke="#059669" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" />
+        <line id="ctx-guide" x1="${coords[activeIdx].x}" y1="${padT}" x2="${coords[activeIdx].x}" y2="${baseY}" stroke="#2563eb" stroke-width="1" stroke-dasharray="2 2" />
+        <circle id="ctx-dot" cx="${coords[activeIdx].x}" cy="${coords[activeIdx].y}" r="3.2" fill="#059669" stroke="#fff" stroke-width="1.2" />
+      </svg>
+    </div>
+    <div class="ctx-scrubber-row">
+      <input id="ctx-scrubber" class="ctx-scrubber" type="range" min="0" max="${n - 1}" value="${activeIdx}">
+    </div>
+    <div class="ctx-detail" id="ctx-detail"></div>
+  `;
+
+  const updateActive = (idx, pin) => {
+    const clamped = Math.max(0, Math.min(n - 1, idx));
+    state.contextStepIdx = clamped;
+    if (pin) state.contextPinned = clamped < n - 1;
+    const s = steps[clamped];
+    const p = coords[clamped];
+    const guide = el.querySelector('#ctx-guide');
+    const dot = el.querySelector('#ctx-dot');
+    const badge = el.querySelector('#ctx-step-badge');
+    const detail = el.querySelector('#ctx-detail');
+    const scrubber = el.querySelector('#ctx-scrubber');
+    if (guide) {
+      guide.setAttribute('x1', p.x);
+      guide.setAttribute('x2', p.x);
+    }
+    if (dot) {
+      dot.setAttribute('cx', p.x);
+      dot.setAttribute('cy', p.y);
+    }
+    if (badge) badge.textContent = `${clamped + 1}/${n}`;
+    if (scrubber) scrubber.value = String(clamped);
+    if (detail) {
+      detail.innerHTML = `
+        <span class="ctx-chip"><b>第 ${s.step} 次</b></span>
+        <span class="ctx-chip">上下文 <b>${fmt(s.context)}</b> (In ${fmt(s.inp)} + Cache ${fmt(s.cache)})</span>
+        <span class="ctx-chip">Out <b>${fmt(s.out)}</b>${s.tools ? ` · 工具 <b>${s.tools}</b>` : ''}</span>
+      `;
+    }
+  };
+
+  updateActive(activeIdx, false);
+
+  const scrubberEl = el.querySelector('#ctx-scrubber');
+  scrubberEl?.addEventListener('input', (e) => {
+    updateActive(Number(e.target.value), true);
+  });
+
+  const svgEl = el.querySelector('#ctx-svg');
+  svgEl?.addEventListener('click', (e) => {
+    const rect = svgEl.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    const ratio = Math.max(0, Math.min(1, (relX - padL) / plotW));
+    updateActive(Math.round(ratio * (n - 1)), true);
+  });
 }
 
 function renderCurrent() {
@@ -115,12 +294,14 @@ function renderCurrent() {
         </div>
       `;
       renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+      renderContextChart(null);
       countEl.textContent = '';
       turnsEl.innerHTML = `<div class="empty">Orchestrator 规划或首轮模型调用完成后将自动更新 Token 统计</div>`;
       return;
     }
     banner.innerHTML = `<div class="conv-banner-title">暂无当前任务记录</div><div class="conv-banner-meta">发送第一条消息后将自动统计 Token</div>`;
     renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+    renderContextChart(null);
     countEl.textContent = '';
     turnsEl.innerHTML = `<div class="empty">还没有模型调用记录</div>`;
     return;
@@ -131,14 +312,23 @@ function renderCurrent() {
     <div class="conv-banner-title">${esc(cur.title)}</div>
     <div class="conv-banner-meta">
       ${isLive ? '<span class="badge">当前会话</span>' : '<button class="link-btn" id="back-active">回到当前会话</button>'}
-      <span>ID: ${esc(cur.id.slice(0, 8))}</span>
-      <span>模型调用: ${cur.modelCalls} 次</span>
-      ${cur.subagentCount ? `<span>子代理: ${cur.subagentCount}</span>` : ''}
-      <span>更新: ${fmtTime(cur.updatedAt)}</span>
+      <span class="meta-pill">ID ${esc(cur.id.slice(0, 8))}</span>
+      <span class="meta-pill">模型 ${cur.modelCalls} 次</span>
+      ${cur.toolCalls ? `<span class="meta-pill">工具 ${cur.toolCalls} 次</span>` : ''}
+      ${cur.subagentCount ? `<span class="meta-pill">子代理 ${cur.subagentCount}</span>` : ''}
+      <span class="meta-pill">${fmtTime(cur.updatedAt)}</span>
     </div>
   `;
 
-  renderCards(cards, cur);
+  const stepSpark = cur.contextSteps?.length >= 2 ? {
+    total: cur.contextSteps.map((s) => s.inp + s.out + s.cache),
+    inp: cur.contextSteps.map((s) => s.inp),
+    out: cur.contextSteps.map((s) => s.out),
+    cache: cur.contextSteps.map((s) => s.cache),
+  } : null;
+
+  renderCards(cards, cur, stepSpark);
+  renderContextChart(cur);
   countEl.textContent = `${cur.turns.length} 轮`;
 
   if (!cur.turns.length) {
@@ -151,7 +341,7 @@ function renderCurrent() {
     .map((t) => `
       <div class="item">
         <div class="item-top">
-          <div class="item-title">#${t.index} ${esc(t.prompt)}</div>
+          <div class="item-title"><span class="turn-num">#${t.index}</span>${esc(t.prompt)}</div>
           <div class="item-total" title="${fmtExact(t.totalTokens)}">${fmt(t.totalTokens)}</div>
         </div>
         <div class="item-meta">
@@ -159,6 +349,7 @@ function renderCurrent() {
           <span>Out: ${fmt(t.outputTokens)}</span>
           <span>Cache: ${fmt(t.cacheReadTokens)}</span>
           <span>${t.phaseSummary ? esc(t.phaseSummary) : `${t.modelCalls} 次调用`}</span>
+          ${t.toolCalls ? `<span>工具 ${t.toolCalls} 次</span>` : ''}
           <span>${fmtTime(t.createdAt)}</span>
         </div>
         ${renderBar(t.inputTokens, t.outputTokens, t.cacheReadTokens)}
@@ -270,7 +461,14 @@ function renderHistory() {
   const cards = document.getElementById('global-cards');
   const listEl = document.getElementById('history-list');
   const totals = state.data?.totals || { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
-  renderCards(cards, totals);
+  const daily = state.data?.series?.daily;
+  const dailySpark = Array.isArray(daily) && daily.length >= 2 ? {
+    total: daily.map((d) => d.totalTokens),
+    inp: daily.map((d) => d.inputTokens),
+    out: daily.map((d) => d.outputTokens),
+    cache: daily.map((d) => d.cacheReadTokens),
+  } : null;
+  renderCards(cards, totals, dailySpark);
   renderTrendChart();
 
   let items = [...(state.data?.conversations || [])];
@@ -308,7 +506,7 @@ function renderHistory() {
           <div class="item-meta">
             <span>In: ${fmt(c.inputTokens)}</span>
             <span>Out: ${fmt(c.outputTokens)}</span>
-            <span>Cache: ${fmt(c.cacheReadTokens)}</span>
+            <span>Cache: ${fmt(c.cacheReadTokens)}${typeof c.cacheHitRate === 'number' ? ` (${c.cacheHitRate}%)` : ''}</span>
             <span>${c.turnCount} 轮 / ${c.modelCalls} 次</span>
             <span>${fmtTime(c.updatedAt)}</span>
           </div>

@@ -57,7 +57,7 @@ app.api('/api/tokens', (data) => {
     { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, billedTokens: 0, totalTokens: 0 },
   );
 
-  const conversations = all.map(({ turns, stepMetrics, ...summary }) => summary);
+  const conversations = all.map(({ turns, stepMetrics, contextSteps, ...summary }) => summary);
   const series = computeTimeSeries(all);
   const settings = readSettings();
 
