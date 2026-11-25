@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Token Tracker</title>
   <script src="/preload.js"></script>
-  <link rel="stylesheet" href="/styles.css?v=8">
+  <link rel="stylesheet" href="/styles.css?v=10">
 </head>
 <body>
   <div class="app">
@@ -16,7 +16,7 @@
           <h1>Token Tracker</h1>
         </div>
         <div class="header-actions">
-          <button id="settings-btn" class="icon-btn" title="Hook 摘要设置" aria-expanded="false" aria-label="设置">
+          <button id="settings-btn" class="icon-btn" title="设置与模型单价" aria-expanded="false" aria-label="设置">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
           <button id="refresh-btn" class="icon-btn" title="刷新" aria-label="刷新">
@@ -26,13 +26,30 @@
       </div>
       <div id="settings-panel" class="settings-panel" hidden>
         <div class="settings-title">
-          <span>Hook 摘要配置</span>
+          <span>Hook 与计价配置</span>
           <span id="settings-status" class="muted"></span>
         </div>
         <label class="toggle-row">
-          <span>显示本会话累计</span>
+          <span>Hook 显示本会话累计</span>
           <input type="checkbox" id="opt-session-total">
         </label>
+        <label class="toggle-row">
+          <span>Hook 摘要显示估算费用 ($)</span>
+          <input type="checkbox" id="opt-hook-cost">
+        </label>
+        <label class="toggle-row">
+          <span>促销期内按官方促销价计费</span>
+          <input type="checkbox" id="opt-promo-pricing">
+        </label>
+        <details id="pricing-details" class="pricing-details">
+          <summary>自定义模型单价 (USD / 1M tokens)</summary>
+          <div class="pricing-hint muted">按模型修改 Input / Output / Cache Read 单价，留空或重置恢复官方默认价。</div>
+          <div id="pricing-table" class="pricing-table"></div>
+          <div class="pricing-actions">
+            <button id="reset-pricing-btn" class="secondary-btn" type="button">恢复官方默认</button>
+            <button id="save-pricing-btn" class="save-btn" type="button">保存单价</button>
+          </div>
+        </details>
       </div>
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="current" role="tab" aria-selected="true">当前任务</button>
@@ -44,6 +61,7 @@
       <section id="view-current" class="view active">
         <div id="current-header" class="conv-banner"></div>
         <div id="current-cards" class="stat-grid"></div>
+        <div id="current-models" class="chart-card" hidden></div>
         <div id="context-chart" class="chart-card" hidden></div>
         <div class="section-title">
           <span>轮次明细 (Turns)</span>
@@ -55,10 +73,12 @@
       <section id="view-history" class="view">
         <div id="global-cards" class="stat-grid"></div>
         <div id="trend-chart" class="chart-card"></div>
+        <div id="global-models" class="chart-card" hidden></div>
         <div class="toolbar">
           <input id="search-input" class="search" type="search" placeholder="搜索任务提示词或 ID…">
           <select id="sort-select" class="select">
             <option value="recent">最近更新</option>
+            <option value="cost">花费最高</option>
             <option value="total">总 Token 最多</option>
             <option value="billed">非缓存最多</option>
           </select>
@@ -67,6 +87,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

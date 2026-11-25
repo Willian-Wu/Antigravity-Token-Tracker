@@ -8,10 +8,15 @@ const state = {
   search: '',
   sort: 'recent',
   chartMode: 'daily', // 'daily' | 'hourly'
-  chartMetric: 'total', // 'total' | 'billed'
+  chartMetric: 'total', // 'total' | 'billed' | 'cost'
   contextConvId: null,
   contextStepIdx: null,
   contextPinned: false,
+  modelsExpanded: {
+    current: false,
+    global: false,
+  },
+  pricingDirty: false,
   data: null,
 };
 
@@ -41,6 +46,22 @@ function fmt(n) {
 
 function fmtExact(n) {
   return (Number(n) || 0).toLocaleString('en-US');
+}
+
+function fmtUsd(n) {
+  const num = Number(n) || 0;
+  if (num <= 0) return '$0.00';
+  if (num < 0.0001) return '<$0.0001';
+  if (num < 0.01) return `$${num.toFixed(4)}`;
+  if (num < 0.1) return `$${num.toFixed(3)}`;
+  return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtUsdExact(n) {
+  const num = Number(n) || 0;
+  if (num <= 0) return '$0.00';
+  if (num < 0.001) return `$${num.toFixed(6)}`;
+  return `$${num.toFixed(4)}`;
 }
 
 function fmtTime(iso) {
@@ -89,18 +110,45 @@ function renderCards(el, stats, sparkSeries = null) {
   const inp = Number(stats.inputTokens) || 0;
   const out = Number(stats.outputTokens) || 0;
   const cache = Number(stats.cacheReadTokens) || 0;
+  const cost = Number(stats.cost) || 0;
+  const inCost = Number(stats.inputCost) || 0;
+  const outCost = Number(stats.outputCost) || 0;
+  const cacheCost = Number(stats.cacheCost) || 0;
+  const cacheSaved = Number(stats.cacheSaved) || 0;
+  const unpricedCalls = Number(stats.unpricedCalls) || 0;
   const billed = inp + out;
   const hitDenom = inp + cache;
   const hitRate = hitDenom > 0 ? ((cache / hitDenom) * 100).toFixed(1) : '0.0';
   const inPct = total > 0 ? ((inp / total) * 100).toFixed(1) : '0.0';
   const outPct = total > 0 ? ((out / total) * 100).toFixed(1) : '0.0';
 
+  const sCost = sparkSeries?.cost || null;
   const sTotal = sparkSeries?.total || null;
   const sInp = sparkSeries?.inp || null;
   const sOut = sparkSeries?.out || null;
   const sCache = sparkSeries?.cache || null;
 
+  const backendStale = state.data && state.data.totals && typeof state.data.totals.cost !== 'number';
+  const staleBanner = backendStale
+    ? `<div class="stale-banner">Sidecar 后端尚未重启，仍返回旧版接口数据；请在插件管理中关闭再重新启用 <b>token-tracker</b>（或重启 Antigravity）以加载费用统计。</div>`
+    : '';
+
   el.innerHTML = `
+    ${staleBanner}
+    <div class="stat-card card-cost">
+      <div class="stat-label">
+        <span class="card-cost-title"><span class="dot dot-cost"></span>估算 API 费用 (USD)</span>
+        ${unpricedCalls > 0 ? `<span class="unpriced-tag" title="早期日志中未记录模型的调用未计入费用">含 ${unpricedCalls} 次未识别</span>` : ''}
+      </div>
+      <div class="stat-mid">
+        <div class="stat-value cost-value" title="In ${fmtUsdExact(inCost)} | Out ${fmtUsdExact(outCost)} | Cache ${fmtUsdExact(cacheCost)}">${fmtUsd(cost)}</div>
+        ${renderSparkline(sCost, 'var(--cost-c)')}
+      </div>
+      <div class="cost-sub-row">
+        <span>In ${fmtUsd(inCost)} · Out ${fmtUsd(outCost)} · Cache ${fmtUsd(cacheCost)}</span>
+        ${cacheSaved >= 0.001 ? `<span class="cost-saved" title="相对无缓存全额 Input 节省的费用">缓存省 ${fmtUsd(cacheSaved)}</span>` : ''}
+      </div>
+    </div>
     <div class="stat-card card-total">
       <div class="stat-label"><span class="dot dot-total"></span>总计 (Total)</div>
       <div class="stat-mid">
@@ -115,7 +163,7 @@ function renderCards(el, stats, sparkSeries = null) {
         <div class="stat-value" title="${fmtExact(inp)}">${fmt(inp)}</div>
         ${renderSparkline(sInp, 'var(--input-c)')}
       </div>
-      <div class="stat-sub">占比 ${inPct}%</div>
+      <div class="stat-sub">占比 ${inPct}%${inCost > 0 ? ` · ${fmtUsd(inCost)}` : ''}</div>
     </div>
     <div class="stat-card card-output">
       <div class="stat-label"><span class="dot dot-output"></span>输出 (Output)</div>
@@ -123,7 +171,7 @@ function renderCards(el, stats, sparkSeries = null) {
         <div class="stat-value" title="${fmtExact(out)}">${fmt(out)}</div>
         ${renderSparkline(sOut, 'var(--output-c)')}
       </div>
-      <div class="stat-sub">占比 ${outPct}%</div>
+      <div class="stat-sub">占比 ${outPct}%${outCost > 0 ? ` · ${fmtUsd(outCost)}` : ''}</div>
     </div>
     <div class="stat-card card-cache">
       <div class="stat-label"><span class="dot dot-cache"></span>缓存命中 (Cache)</div>
@@ -131,9 +179,73 @@ function renderCards(el, stats, sparkSeries = null) {
         <div class="stat-value" title="${fmtExact(cache)}">${fmt(cache)}</div>
         ${renderSparkline(sCache, 'var(--cache-c)')}
       </div>
-      <div class="stat-sub">命中率 ${hitRate}%</div>
+      <div class="stat-sub">命中率 ${hitRate}%${cacheCost > 0 ? ` · ${fmtUsd(cacheCost)}` : ''}</div>
     </div>
   `;
+}
+
+function renderModelBreakdown(el, breakdown, title, sectionKey) {
+  if (!el) return;
+  if (!Array.isArray(breakdown) || breakdown.length === 0) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+
+  el.hidden = false;
+  const expanded = Boolean(state.modelsExpanded[sectionKey]);
+  el.classList.toggle('is-collapsed', !expanded);
+  const totalCost = breakdown.reduce((sum, m) => sum + (Number(m.cost) || 0), 0);
+  const totalToks = breakdown.reduce((sum, m) => sum + (Number(m.totalTokens) || 0), 0);
+
+  const rowsHtml = expanded
+    ? breakdown
+      .map((m) => {
+        const sharePct = totalCost > 0
+          ? ((m.cost / totalCost) * 100)
+          : (totalToks > 0 ? ((m.totalTokens / totalToks) * 100) : 0);
+        const widthPct = Math.max(sharePct > 0 ? 3 : 0, Math.min(100, sharePct));
+        const tip = `In ${fmt(m.inputTokens)} (${fmtUsdExact(m.inputCost)}) | Out ${fmt(m.outputTokens)} (${fmtUsdExact(m.outputCost)}) | Cache ${fmt(m.cacheReadTokens)} (${fmtUsdExact(m.cacheCost)})`;
+        return `
+          <div class="model-row" title="${esc(tip)}">
+            <div class="model-row-top">
+              <span class="model-row-name">
+                ${esc(m.label)}
+                ${!m.priced ? '<span class="unpriced-tag">未定价</span>' : ''}
+              </span>
+              <span class="model-row-stats">
+                <span class="model-row-tokens">${m.calls} 次 · ${fmt(m.totalTokens)}</span>
+                <span class="model-row-cost">${m.priced ? fmtUsd(m.cost) : '—'}</span>
+              </span>
+            </div>
+            <div class="model-bar-track">
+              <div class="model-bar-fill" style="width:${widthPct.toFixed(1)}%"></div>
+            </div>
+          </div>
+        `;
+      })
+      .join('')
+    : '';
+
+  el.innerHTML = `
+    <button type="button" class="collapse-head" aria-expanded="${expanded}">
+      <span class="chart-title">
+        <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        <span>${esc(title)}</span>
+        <span class="muted">${breakdown.length} 个模型</span>
+      </span>
+      <span class="collapse-right">
+        <span class="model-row-cost">${fmtUsd(totalCost)}</span>
+        <span class="muted">${expanded ? '收起' : '展开'}</span>
+      </span>
+    </button>
+    ${expanded ? `<div class="model-list">${rowsHtml}</div>` : ''}
+  `;
+
+  el.querySelector('.collapse-head')?.addEventListener('click', () => {
+    state.modelsExpanded[sectionKey] = !state.modelsExpanded[sectionKey];
+    renderModelBreakdown(el, breakdown, title, sectionKey);
+  });
 }
 
 function renderBar(inp, out, cache) {
@@ -252,7 +364,8 @@ function renderContextChart(cur) {
     if (scrubber) scrubber.value = String(clamped);
     if (detail) {
       detail.innerHTML = `
-        <span class="ctx-chip"><b>第 ${s.step} 次</b></span>
+        <span class="ctx-chip"><b>第 ${s.step} 次</b>${s.modelLabel && s.modelKey !== 'unknown' ? ` · ${esc(s.modelLabel)}` : ''}</span>
+        ${s.cost > 0 ? `<span class="ctx-chip">费用 <b>${fmtUsd(s.cost)}</b></span>` : ''}
         <span class="ctx-chip">上下文 <b>${fmt(s.context)}</b> (In ${fmt(s.inp)} + Cache ${fmt(s.cache)})</span>
         <span class="ctx-chip">Out <b>${fmt(s.out)}</b>${s.tools ? ` · 工具 <b>${s.tools}</b>` : ''}</span>
       `;
@@ -275,9 +388,16 @@ function renderContextChart(cur) {
   });
 }
 
+function formatModelsSummary(models) {
+  if (!Array.isArray(models) || !models.length) return '';
+  if (models.length <= 2) return models.join(' / ');
+  return `${models.slice(0, 2).join(' / ')} +${models.length - 2}`;
+}
+
 function renderCurrent() {
   const banner = document.getElementById('current-header');
   const cards = document.getElementById('current-cards');
+  const modelsEl = document.getElementById('current-models');
   const turnsEl = document.getElementById('turns-list');
   const countEl = document.getElementById('turn-count');
 
@@ -293,14 +413,16 @@ function renderCurrent() {
           <span>ID: ${esc(hostConvId.slice(0, 8))}</span>
         </div>
       `;
-      renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+      renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 });
+      renderModelBreakdown(modelsEl, [], '会话模型拆分', 'current');
       renderContextChart(null);
       countEl.textContent = '';
       turnsEl.innerHTML = `<div class="empty">Orchestrator 规划或首轮模型调用完成后将自动更新 Token 统计</div>`;
       return;
     }
     banner.innerHTML = `<div class="conv-banner-title">暂无当前任务记录</div><div class="conv-banner-meta">发送第一条消息后将自动统计 Token</div>`;
-    renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+    renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 });
+    renderModelBreakdown(modelsEl, [], '会话模型拆分', 'current');
     renderContextChart(null);
     countEl.textContent = '';
     turnsEl.innerHTML = `<div class="empty">还没有模型调用记录</div>`;
@@ -308,10 +430,12 @@ function renderCurrent() {
   }
 
   const isLive = Boolean(effectiveActiveId && cur.id === effectiveActiveId);
+  const modelSummary = formatModelsSummary(cur.models);
   banner.innerHTML = `
     <div class="conv-banner-title">${esc(cur.title)}</div>
     <div class="conv-banner-meta">
       ${isLive ? '<span class="badge">当前会话</span>' : '<button class="link-btn" id="back-active">回到当前会话</button>'}
+      ${modelSummary ? `<span class="model-pill">${esc(modelSummary)}</span>` : ''}
       <span class="meta-pill">ID ${esc(cur.id.slice(0, 8))}</span>
       <span class="meta-pill">模型 ${cur.modelCalls} 次</span>
       ${cur.toolCalls ? `<span class="meta-pill">工具 ${cur.toolCalls} 次</span>` : ''}
@@ -321,6 +445,7 @@ function renderCurrent() {
   `;
 
   const stepSpark = cur.contextSteps?.length >= 2 ? {
+    cost: cur.contextSteps.map((s) => s.cost || 0),
     total: cur.contextSteps.map((s) => s.inp + s.out + s.cache),
     inp: cur.contextSteps.map((s) => s.inp),
     out: cur.contextSteps.map((s) => s.out),
@@ -328,6 +453,8 @@ function renderCurrent() {
   } : null;
 
   renderCards(cards, cur, stepSpark);
+  const showCurrentModels = Array.isArray(cur.modelBreakdown) && (cur.modelBreakdown.length > 1 || (cur.modelBreakdown.length === 1 && cur.subagentCount > 0));
+  renderModelBreakdown(modelsEl, showCurrentModels ? cur.modelBreakdown : [], '会话模型拆分', 'current');
   renderContextChart(cur);
   countEl.textContent = `${cur.turns.length} 轮`;
 
@@ -338,23 +465,31 @@ function renderCurrent() {
 
   turnsEl.innerHTML = [...cur.turns]
     .reverse()
-    .map((t) => `
-      <div class="item">
-        <div class="item-top">
-          <div class="item-title"><span class="turn-num">#${t.index}</span>${esc(t.prompt)}</div>
-          <div class="item-total" title="${fmtExact(t.totalTokens)}">${fmt(t.totalTokens)}</div>
+    .map((t) => {
+      const turnModels = formatModelsSummary(t.models);
+      const hasCost = Number(t.cost) > 0;
+      return `
+        <div class="item">
+          <div class="item-top">
+            <div class="item-title"><span class="turn-num">#${t.index}</span>${esc(t.prompt)}</div>
+            <div class="item-right">
+              ${hasCost ? `<div class="item-cost" title="In ${fmtUsdExact(t.inputCost)} | Out ${fmtUsdExact(t.outputCost)} | Cache ${fmtUsdExact(t.cacheCost)}">${fmtUsd(t.cost)}</div>` : ''}
+              <div class="item-total" title="${fmtExact(t.totalTokens)}">${fmt(t.totalTokens)}</div>
+            </div>
+          </div>
+          <div class="item-meta">
+            ${turnModels ? `<span class="model-tag">${esc(turnModels)}</span>` : ''}
+            <span>In: ${fmt(t.inputTokens)}</span>
+            <span>Out: ${fmt(t.outputTokens)}</span>
+            <span>Cache: ${fmt(t.cacheReadTokens)}</span>
+            <span>${t.phaseSummary ? esc(t.phaseSummary) : `${t.modelCalls} 次调用`}</span>
+            ${t.toolCalls ? `<span>工具 ${t.toolCalls} 次</span>` : ''}
+            <span>${fmtTime(t.createdAt)}</span>
+          </div>
+          ${renderBar(t.inputTokens, t.outputTokens, t.cacheReadTokens)}
         </div>
-        <div class="item-meta">
-          <span>In: ${fmt(t.inputTokens)}</span>
-          <span>Out: ${fmt(t.outputTokens)}</span>
-          <span>Cache: ${fmt(t.cacheReadTokens)}</span>
-          <span>${t.phaseSummary ? esc(t.phaseSummary) : `${t.modelCalls} 次调用`}</span>
-          ${t.toolCalls ? `<span>工具 ${t.toolCalls} 次</span>` : ''}
-          <span>${fmtTime(t.createdAt)}</span>
-        </div>
-        ${renderBar(t.inputTokens, t.outputTokens, t.cacheReadTokens)}
-      </div>
-    `)
+      `;
+    })
     .join('');
 }
 
@@ -362,20 +497,31 @@ function renderTrendChart() {
   const el = document.getElementById('trend-chart');
   if (!el) return;
   const buckets = state.data?.series?.[state.chartMode] || [];
+  const isCost = state.chartMetric === 'cost';
   const isBilled = state.chartMetric === 'billed';
-  const values = buckets.map((b) => (isBilled ? b.billedTokens : b.totalTokens));
+  const fmtVal = isCost ? fmtUsd : fmt;
+
+  const getBucketVal = (b) => {
+    if (isCost) return Number(b.cost) || 0;
+    if (isBilled) return Number(b.billedTokens) || 0;
+    return Number(b.totalTokens) || 0;
+  };
+
+  const values = buckets.map(getBucketVal);
   const maxVal = Math.max(0, ...values);
   const sumVal = values.reduce((a, b) => a + b, 0);
   const n = buckets.length;
 
   const colsHtml = buckets
     .map((b, i) => {
-      const val = isBilled ? b.billedTokens : b.totalTokens;
+      const val = getBucketVal(b);
       const hPct = maxVal > 0 ? Math.max(val > 0 ? 4 : 0, (val / maxVal) * 100) : 0;
-      const pIn = val > 0 ? (b.inputTokens / val) * 100 : 0;
-      const pOut = val > 0 ? (b.outputTokens / val) * 100 : 0;
-      const pCache = !isBilled && val > 0 ? (b.cacheReadTokens / val) * 100 : 0;
-      const tip = `${b.label} · ${fmtExact(val)} (In ${fmt(b.inputTokens)} / Out ${fmt(b.outputTokens)}${isBilled ? '' : ` / Cache ${fmt(b.cacheReadTokens)}`})`;
+      const pIn = val > 0 ? ((isCost ? b.inputCost : b.inputTokens) / val) * 100 : 0;
+      const pOut = val > 0 ? ((isCost ? b.outputCost : b.outputTokens) / val) * 100 : 0;
+      const pCache = !isBilled && val > 0 ? ((isCost ? b.cacheCost : b.cacheReadTokens) / val) * 100 : 0;
+      const tip = isCost
+        ? `${b.label} · ${fmtUsdExact(b.cost)} (In ${fmtUsd(b.inputCost)} / Out ${fmtUsd(b.outputCost)} / Cache ${fmtUsd(b.cacheCost)})`
+        : `${b.label} · ${fmtExact(val)} (In ${fmt(b.inputTokens)} / Out ${fmt(b.outputTokens)}${isBilled ? '' : ` / Cache ${fmt(b.cacheReadTokens)}`})`;
       const showLabel = state.chartMode === 'daily' || i % 6 === 0 || i === n - 1;
 
       const isLast = i === n - 1;
@@ -384,7 +530,7 @@ function renderTrendChart() {
           <div class="chart-bar-wrap">
             ${val > 0 ? `
               <div class="chart-bar" style="height:${hPct.toFixed(1)}%">
-                ${val > 0 ? `<span class="chart-val">${fmt(val)}</span>` : ''}
+                <span class="chart-val">${fmtVal(val)}</span>
                 ${pIn > 0 ? `<div class="chart-seg chart-seg-in" style="flex:${pIn.toFixed(2)}"></div>` : ''}
                 ${pOut > 0 ? `<div class="chart-seg chart-seg-out" style="flex:${pOut.toFixed(2)}"></div>` : ''}
                 ${pCache > 0 ? `<div class="chart-seg chart-seg-cache" style="flex:${pCache.toFixed(2)}"></div>` : ''}
@@ -399,9 +545,9 @@ function renderTrendChart() {
 
   const defaultLegend = `
     <span class="chart-legend-items">
-      <span><i class="dot dot-input"></i>Input</span>
-      <span><i class="dot dot-output"></i>Output</span>
-      ${isBilled ? '' : '<span><i class="dot dot-cache"></i>Cache</span>'}
+      <span><i class="dot dot-input"></i>Input${isCost ? ' $' : ''}</span>
+      <span><i class="dot dot-output"></i>Output${isCost ? ' $' : ''}</span>
+      ${isBilled ? '' : `<span><i class="dot dot-cache"></i>Cache${isCost ? ' $' : ''}</span>`}
     </span>
   `;
 
@@ -409,7 +555,7 @@ function renderTrendChart() {
     <div class="chart-head">
       <div class="chart-title">
         <span>消耗趋势</span>
-        <span class="muted">合计 ${fmt(sumVal)} · 峰值 ${fmt(maxVal)}</span>
+        <span class="muted">合计 ${fmtVal(sumVal)} · 峰值 ${fmtVal(maxVal)}</span>
       </div>
       <div class="chart-controls">
         <div class="seg">
@@ -419,13 +565,14 @@ function renderTrendChart() {
         <div class="seg">
           <button class="seg-btn ${state.chartMetric === 'total' ? 'active' : ''}" data-chart-metric="total">总计</button>
           <button class="seg-btn ${state.chartMetric === 'billed' ? 'active' : ''}" data-chart-metric="billed">非缓存</button>
+          <button class="seg-btn ${state.chartMetric === 'cost' ? 'active' : ''}" data-chart-metric="cost">费用$</button>
         </div>
       </div>
     </div>
     <div class="chart-body">
       <div class="chart-grid">
-        <div class="chart-grid-line"><span>${maxVal > 0 ? fmt(maxVal) : ''}</span></div>
-        <div class="chart-grid-line"><span>${maxVal > 0 ? fmt(Math.round(maxVal / 2)) : ''}</span></div>
+        <div class="chart-grid-line"><span>${maxVal > 0 ? fmtVal(maxVal) : ''}</span></div>
+        <div class="chart-grid-line"><span>${maxVal > 0 ? fmtVal(isCost ? maxVal / 2 : Math.round(maxVal / 2)) : ''}</span></div>
         <div class="chart-grid-line"></div>
       </div>
       <div class="chart-cols ${state.chartMode === 'hourly' ? 'is-hourly' : ''}">${colsHtml}</div>
@@ -459,10 +606,12 @@ function renderTrendChart() {
 
 function renderHistory() {
   const cards = document.getElementById('global-cards');
+  const modelsEl = document.getElementById('global-models');
   const listEl = document.getElementById('history-list');
-  const totals = state.data?.totals || { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
+  const totals = state.data?.totals || { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 };
   const daily = state.data?.series?.daily;
   const dailySpark = Array.isArray(daily) && daily.length >= 2 ? {
+    cost: daily.map((d) => d.cost || 0),
     total: daily.map((d) => d.totalTokens),
     inp: daily.map((d) => d.inputTokens),
     out: daily.map((d) => d.outputTokens),
@@ -470,14 +619,20 @@ function renderHistory() {
   } : null;
   renderCards(cards, totals, dailySpark);
   renderTrendChart();
+  renderModelBreakdown(modelsEl, state.data?.modelBreakdown || [], '模型费用分布', 'global');
 
   let items = [...(state.data?.conversations || [])];
   const q = state.search.trim().toLowerCase();
   if (q) {
-    items = items.filter((c) => c.title.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+    items = items.filter((c) => {
+      const modelsText = Array.isArray(c.models) ? c.models.join(' ').toLowerCase() : '';
+      return c.title.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || modelsText.includes(q);
+    });
   }
 
-  if (state.sort === 'total') {
+  if (state.sort === 'cost') {
+    items.sort((a, b) => (b.cost || 0) - (a.cost || 0) || b.totalTokens - a.totalTokens);
+  } else if (state.sort === 'total') {
     items.sort((a, b) => b.totalTokens - a.totalTokens);
   } else if (state.sort === 'billed') {
     items.sort((a, b) => b.billedTokens - a.billedTokens);
@@ -497,13 +652,19 @@ function renderHistory() {
     .map((c) => {
       const isSelected = c.id === currentShownId;
       const isLive = Boolean(effectiveActiveId && c.id === effectiveActiveId);
+      const modelSummary = formatModelsSummary(c.models);
+      const hasCost = Number(c.cost) > 0;
       return `
         <div class="item clickable ${isSelected ? 'is-active' : ''}" data-conv-id="${esc(c.id)}">
           <div class="item-top">
             <div class="item-title">${isLive ? '<span class="badge">当前</span> ' : ''}${esc(c.title)}</div>
-            <div class="item-total" title="${fmtExact(c.totalTokens)}">${fmt(c.totalTokens)}</div>
+            <div class="item-right">
+              ${hasCost ? `<div class="item-cost" title="In ${fmtUsdExact(c.inputCost)} | Out ${fmtUsdExact(c.outputCost)} | Cache ${fmtUsdExact(c.cacheCost)}">${fmtUsd(c.cost)}</div>` : ''}
+              <div class="item-total" title="${fmtExact(c.totalTokens)}">${fmt(c.totalTokens)}</div>
+            </div>
           </div>
           <div class="item-meta">
+            ${modelSummary ? `<span class="model-tag">${esc(modelSummary)}</span>` : ''}
             <span>In: ${fmt(c.inputTokens)}</span>
             <span>Out: ${fmt(c.outputTokens)}</span>
             <span>Cache: ${fmt(c.cacheReadTokens)}${typeof c.cacheHitRate === 'number' ? ` (${c.cacheHitRate}%)` : ''}</span>
@@ -538,35 +699,158 @@ function switchTab(tab) {
   document.getElementById('view-history').classList.toggle('active', tab === 'history');
 }
 
-function renderSettings() {
-  const h = state.data?.settings?.hook;
-  if (!h) return;
-  document.getElementById('opt-session-total').checked = Boolean(h.showSessionTotal);
+function renderPricingTable() {
+  const tableEl = document.getElementById('pricing-table');
+  const catalog = state.data?.pricingCatalog;
+  if (!tableEl || !Array.isArray(catalog)) return;
+  if (state.pricingDirty || document.activeElement?.closest('#pricing-table')) return;
+
+  const rowsHtml = catalog
+    .map((m) => {
+      const badge = m.isCustom
+        ? '<span class="pricing-badge is-custom">自定义</span>'
+        : (m.isPromoActive ? `<span class="pricing-badge" title="促销价截至 ${esc(m.promo?.until || '')}">促销</span>` : '');
+      return `
+        <div class="pricing-row" data-model-key="${esc(m.key)}">
+          <div class="pricing-model-name" title="${esc(m.key)}">${esc(m.label)}${badge}</div>
+          <input class="pricing-input" data-field="input" type="number" step="0.01" min="0" value="${m.effective.input}">
+          <input class="pricing-input" data-field="output" type="number" step="0.01" min="0" value="${m.effective.output}">
+          <input class="pricing-input" data-field="cacheRead" type="number" step="0.005" min="0" value="${m.effective.cacheRead}">
+        </div>
+      `;
+    })
+    .join('');
+
+  tableEl.innerHTML = `
+    <div class="pricing-head">
+      <span>模型</span>
+      <span>Input</span>
+      <span>Output</span>
+      <span>Cache</span>
+    </div>
+    ${rowsHtml}
+  `;
+
+  tableEl.querySelectorAll('.pricing-input').forEach((input) => {
+    input.addEventListener('input', () => {
+      state.pricingDirty = true;
+    });
+  });
 }
 
-async function saveSettings() {
+function renderSettings() {
+  const h = state.data?.settings?.hook;
+  const p = state.data?.settings?.pricing;
+  if (h) {
+    document.getElementById('opt-session-total').checked = Boolean(h.showSessionTotal);
+    document.getElementById('opt-hook-cost').checked = h.showCost !== false;
+  }
+  if (p) {
+    document.getElementById('opt-promo-pricing').checked = p.usePromoPricing !== false;
+  }
+  renderPricingTable();
+}
+
+function showSettingsStatus(text) {
   const statusEl = document.getElementById('settings-status');
-  const payload = {
-    hook: {
-      showSessionTotal: document.getElementById('opt-session-total').checked,
-    },
-  };
+  if (!statusEl) return;
+  statusEl.textContent = text;
+  setTimeout(() => {
+    if (statusEl.textContent === text) statusEl.textContent = '';
+  }, 1800);
+}
+
+async function postSettings(payload, okMessage = '已保存') {
   try {
     const res = await apiFetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (res.ok && state.data) {
-      state.data.settings = await res.json();
-      statusEl.textContent = '已保存';
-      setTimeout(() => {
-        if (statusEl.textContent === '已保存') statusEl.textContent = '';
-      }, 1500);
+    if (res.ok) {
+      const updated = await res.json();
+      if (state.data) {
+        state.data.settings = {
+          hook: updated.hook,
+          pricing: updated.pricing,
+        };
+        if (updated.pricingCatalog) {
+          state.data.pricingCatalog = updated.pricingCatalog;
+        }
+      }
+      state.pricingDirty = false;
+      showSettingsStatus(okMessage);
+      await fetchTokens();
+    } else {
+      showSettingsStatus('保存失败');
     }
   } catch {
-    statusEl.textContent = '保存失败';
+    showSettingsStatus('保存失败');
   }
+}
+
+async function saveToggleSettings() {
+  await postSettings({
+    hook: {
+      showSessionTotal: document.getElementById('opt-session-total').checked,
+      showCost: document.getElementById('opt-hook-cost').checked,
+    },
+    pricing: {
+      usePromoPricing: document.getElementById('opt-promo-pricing').checked,
+    },
+  });
+}
+
+async function savePricingOverrides() {
+  const catalog = state.data?.pricingCatalog || [];
+  const byKey = new Map(catalog.map((m) => [m.key, m]));
+  const overrides = {};
+  const existingOverrides = state.data?.settings?.pricing?.overrides || {};
+  const usePromo = document.getElementById('opt-promo-pricing').checked;
+
+  document.querySelectorAll('#pricing-table .pricing-row').forEach((row) => {
+    const key = row.dataset.modelKey;
+    const input = Number(row.querySelector('[data-field="input"]')?.value);
+    const output = Number(row.querySelector('[data-field="output"]')?.value);
+    const cacheRead = Number(row.querySelector('[data-field="cacheRead"]')?.value);
+    if (!Number.isFinite(input) || !Number.isFinite(output) || !Number.isFinite(cacheRead)) return;
+    if (input < 0 || output < 0 || cacheRead < 0) return;
+
+    const meta = byKey.get(key);
+    const promoValid = Boolean(meta?.promo && Date.now() < Date.parse(`${meta.promo.until}T23:59:59.999Z`));
+    const baseline = (usePromo && promoValid) ? meta.promo : meta?.standard;
+    const isModified = !baseline
+      || Math.abs(input - baseline.input) > 1e-6
+      || Math.abs(output - baseline.output) > 1e-6
+      || Math.abs(cacheRead - baseline.cacheRead) > 1e-6;
+
+    if (isModified) {
+      overrides[key] = { input, output, cacheRead };
+    }
+  });
+
+  await postSettings(
+    {
+      pricing: {
+        usePromoPricing: usePromo,
+        overrides,
+      },
+    },
+    '单价已更新',
+  );
+}
+
+async function resetPricingOverrides() {
+  state.pricingDirty = false;
+  await postSettings(
+    {
+      pricing: {
+        usePromoPricing: true,
+        overrides: {},
+      },
+    },
+    '已恢复官方默认',
+  );
 }
 
 async function fetchTokens() {
@@ -624,7 +908,11 @@ document.getElementById('settings-btn').addEventListener('click', () => {
   panel.hidden = nextHidden;
   btn.setAttribute('aria-expanded', String(!nextHidden));
 });
-document.getElementById('opt-session-total').addEventListener('change', saveSettings);
+document.getElementById('opt-session-total').addEventListener('change', saveToggleSettings);
+document.getElementById('opt-hook-cost').addEventListener('change', saveToggleSettings);
+document.getElementById('opt-promo-pricing').addEventListener('change', saveToggleSettings);
+document.getElementById('save-pricing-btn').addEventListener('click', savePricingOverrides);
+document.getElementById('reset-pricing-btn').addEventListener('click', resetPricingOverrides);
 document.getElementById('search-input').addEventListener('input', (e) => {
   state.search = e.target.value;
   renderHistory();
