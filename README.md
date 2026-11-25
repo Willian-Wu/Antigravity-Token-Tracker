@@ -11,7 +11,17 @@
 ## Screenshots
 
 ### Sidecar Analytics Panel
-![Token Tracker Side Panel](./assets/screenshot-panel.png)
+
+<table>
+  <tr>
+    <td align="center"><b>All Tasks · Cost Trends &amp; Model Breakdown</b></td>
+    <td align="center"><b>Current Task · Context Growth &amp; Turns</b></td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="./assets/screenshot-panel.png" alt="Token Tracker All Tasks View" width="380" /></td>
+    <td valign="top"><img src="./assets/screenshot-current.png" alt="Token Tracker Current Task View" width="380" /></td>
+  </tr>
+</table>
 
 ### Plugin Overview & Quick Entry
 ![Antigravity Plugin Overview](./assets/screenshot-plugin.png)
