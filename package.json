@@ -1,0 +1,14 @@
+{
+  "name": "antigravity-token-tracker",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Track and visualize token consumption and estimated API cost (USD) in Antigravity",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check lib/pricing.mjs && node --check lib/tokens.mjs && node --check hooks/report-tokens.mjs && node --check sidecars/token_panel/main.mjs && node --check sidecars/token_panel/app.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

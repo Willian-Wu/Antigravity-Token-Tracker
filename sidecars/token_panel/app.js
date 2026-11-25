@@ -1,7 +1,220 @@
 const ID_RE = /^[0-9a-f-]{8,}$/i;
 
+const I18N = {
+  zh: {
+    tabCurrent: '当前任务',
+    tabHistory: '全部任务',
+    settingsTitle: 'Hook、预算与计价配置',
+    optSessionTotal: 'Hook 显示本会话累计',
+    optHookCost: 'Hook 摘要显示估算费用 ($)',
+    optPromoPricing: '促销期内按官方促销价计费',
+    budgetDailyLabel: '日预算 (USD, 0=关)',
+    budgetWeeklyLabel: '周预算 (USD, 0=关)',
+    customPricingSummary: '自定义模型单价 (USD / 1M tokens)',
+    customPricingHint: '修改 Input / Output / Cache Read 单价；日志中出现的新模型也会自动列在下方。',
+    resetPricing: '恢复官方默认',
+    savePricing: '保存单价',
+    turnsTitle: '轮次明细 (Turns)',
+    rangeToday: '今日',
+    range7d: '7天',
+    range30d: '30天',
+    rangeAll: '全部',
+    sortRecent: '最近更新',
+    sortCost: '花费最高',
+    sortTotal: '总 Token 最多',
+    sortBilled: '非缓存最多',
+    searchPlaceholder: '搜索任务提示词、模型或 ID…',
+    exportCsv: '导出 CSV',
+    exportMd: '导出 Markdown',
+    copyMd: '复制 Markdown',
+    exportTitle: '导出账单报表',
+    settingsBtnTitle: '设置、预算与模型单价',
+    refreshBtnTitle: '刷新',
+    langBtnTitle: '切换为英文',
+    costCardTitle: '估算 API 费用 (USD)',
+    unpricedBadge: (n) => `含 ${n} 次未识别`,
+    unpricedTooltip: '早期日志中未记录模型的调用未计入费用',
+    cacheSaved: (v) => `缓存省 ${v}`,
+    cacheSavedTooltip: '相对无缓存全额 Input 节省的费用',
+    totalCard: '总计 (Total)',
+    nonCached: (v) => `非缓存 ${v}`,
+    inputCard: '输入 (Input)',
+    outputCard: '输出 (Output)',
+    cacheCard: '缓存命中 (Cache)',
+    sharePct: (p) => `占比 ${p}%`,
+    hitRate: (p) => `命中率 ${p}%`,
+    staleBanner: 'Sidecar 后端尚未重启，仍返回旧版接口数据；请在插件管理中关闭再重新启用 <b>token-tracker</b>（或重启 Antigravity）以加载新版统计。',
+    sessionModelsTitle: '会话模型拆分',
+    globalModelsTitle: '模型费用分布',
+    modelCount: (n) => `${n} 个模型`,
+    callsSuffix: (n) => `${n} 次`,
+    unpricedTag: '未定价',
+    expand: '展开',
+    collapse: '收起',
+    ctxTitle: '上下文增长',
+    ctxSummary: (cur, win, pct, peak) => `当前 ${cur} / ${win} (${pct}%) · 峰值 ${peak}`,
+    ctxStep: (s) => `第 ${s} 次`,
+    ctxCost: '费用',
+    ctxContext: '上下文',
+    ctxTools: '工具',
+    ctxWarnHigh: (pct) => `上下文已占窗口 ${pct}%，单步推理与缓存开销显著升高，建议 /compact 或开启新会话。`,
+    ctxWarnMed: (pct) => `上下文已达 ${pct}%（250k+），单步开销偏高，可考虑适时 /compact 压缩上下文。`,
+    inferringTitle: '当前会话推理中…',
+    liveBadge: '当前会话',
+    liveShort: '当前',
+    backActive: '回到当前会话',
+    inferringEmpty: 'Orchestrator 规划或首轮模型调用完成后将自动更新 Token 统计',
+    noCurrentTitle: '暂无当前任务记录',
+    noCurrentSub: '发送第一条消息后将自动统计 Token',
+    noCallsEmpty: '还没有模型调用记录',
+    noTurnsEmpty: '暂无轮次记录',
+    noMatchesEmpty: '没有匹配的任务记录',
+    modelCallsPill: (n) => `模型 ${n} 次`,
+    toolCallsPill: (n) => `工具 ${n} 次`,
+    subagentPill: (n) => `子代理 ${n}`,
+    turnsCount: (n) => `${n} 轮`,
+    subagentPrefix: (label) => `[子代理 · ${label}]`,
+    phasePlanExec: (p, e) => `规划 ${p} + 执行 ${e} 次`,
+    phasePlan: (p) => `规划 ${p} 次`,
+    phaseExec: (e) => `执行 ${e} 次`,
+    callsLabel: (n) => `${n} 次调用`,
+    toolsLabel: (n) => `工具 ${n} 次`,
+    trendTitle: '消耗趋势',
+    trendSummary: (sum, peak) => `合计 ${sum} · 峰值 ${peak}`,
+    trend7d: '7天',
+    trend24h: '24h',
+    trendTotal: '总计',
+    trendBilled: '非缓存',
+    trendCost: '费用$',
+    tasksCount: (n) => `${n} 个任务`,
+    budgetDaily: '今日预算',
+    budgetWeekly: '本周预算',
+    budgetSub: (used, limit, rem) => `已用 ${used} / ${limit} · 剩 ${rem}`,
+    budgetOver: (used, limit) => `已用 ${used} / ${limit} · 已超支`,
+    pricingColModel: '模型',
+    badgeCustom: '自定义',
+    badgePromo: '促销',
+    badgeNew: '新发现',
+    promoTip: (u) => `促销价截至 ${u}`,
+    saved: '已保存',
+    saveFailed: '保存失败',
+    pricingUpdated: '单价已更新',
+    pricingReset: '已恢复官方默认',
+    exported: (fmt) => `已导出 ${fmt}`,
+    copiedMd: '已复制 Markdown 报表',
+    copyFailed: '复制失败',
+    unknownModel: '未识别模型',
+  },
+  en: {
+    tabCurrent: 'Current',
+    tabHistory: 'All Tasks',
+    settingsTitle: 'Hook, Budget & Pricing',
+    optSessionTotal: 'Show session total in Hook',
+    optHookCost: 'Show estimated USD cost in Hook',
+    optPromoPricing: 'Auto-apply promo pricing during promo window',
+    budgetDailyLabel: 'Daily budget (USD, 0=off)',
+    budgetWeeklyLabel: 'Weekly budget (USD, 0=off)',
+    customPricingSummary: 'Model pricing overrides (USD / 1M tokens)',
+    customPricingHint: 'Edit Input / Output / Cache Read rates. Newly detected models from logs appear automatically below.',
+    resetPricing: 'Reset defaults',
+    savePricing: 'Save rates',
+    turnsTitle: 'Turns',
+    rangeToday: 'Today',
+    range7d: '7D',
+    range30d: '30D',
+    rangeAll: 'All',
+    sortRecent: 'Recent',
+    sortCost: 'Highest Cost',
+    sortTotal: 'Most Tokens',
+    sortBilled: 'Most Non-cached',
+    searchPlaceholder: 'Search prompt, model, or ID…',
+    exportCsv: 'Download CSV',
+    exportMd: 'Download Markdown',
+    copyMd: 'Copy Markdown',
+    exportTitle: 'Export usage report',
+    settingsBtnTitle: 'Settings, budget & model pricing',
+    refreshBtnTitle: 'Refresh',
+    langBtnTitle: 'Switch to Chinese',
+    costCardTitle: 'Estimated API Cost (USD)',
+    unpricedBadge: (n) => `${n} unpriced`,
+    unpricedTooltip: 'Legacy calls without model metadata are excluded from USD cost',
+    cacheSaved: (v) => `Cache saved ${v}`,
+    cacheSavedTooltip: 'Estimated savings vs uncached input pricing',
+    totalCard: 'Total',
+    nonCached: (v) => `Non-cached ${v}`,
+    inputCard: 'Input',
+    outputCard: 'Output',
+    cacheCard: 'Cache Read',
+    sharePct: (p) => `${p}% share`,
+    hitRate: (p) => `${p}% hit rate`,
+    staleBanner: 'Sidecar backend has not restarted yet. Toggle <b>token-tracker</b> off and on in Plugins (or restart Antigravity) to load updated stats.',
+    sessionModelsTitle: 'Session Models',
+    globalModelsTitle: 'Cost by Model',
+    modelCount: (n) => `${n} model${n > 1 ? 's' : ''}`,
+    callsSuffix: (n) => `${n} call${n > 1 ? 's' : ''}`,
+    unpricedTag: 'Unpriced',
+    expand: 'Expand',
+    collapse: 'Hide',
+    ctxTitle: 'Context Growth',
+    ctxSummary: (cur, win, pct, peak) => `Now ${cur} / ${win} (${pct}%) · Peak ${peak}`,
+    ctxStep: (s) => `Step ${s}`,
+    ctxCost: 'Cost',
+    ctxContext: 'Context',
+    ctxTools: 'Tools',
+    ctxWarnHigh: (pct) => `Context at ${pct}% of window — consider /compact or a new chat to reduce per-step spend.`,
+    ctxWarnMed: (pct) => `Context at ${pct}% (250k+) — per-step cache & input spend is elevated; consider /compact.`,
+    inferringTitle: 'Current session running…',
+    liveBadge: 'Active',
+    liveShort: 'Live',
+    backActive: 'Back to active',
+    inferringEmpty: 'Token stats will appear after the first model step finishes',
+    noCurrentTitle: 'No active conversation',
+    noCurrentSub: 'Send a message to start tracking tokens & cost',
+    noCallsEmpty: 'No model calls recorded yet',
+    noTurnsEmpty: 'No turns recorded yet',
+    noMatchesEmpty: 'No matching tasks found',
+    modelCallsPill: (n) => `${n} calls`,
+    toolCallsPill: (n) => `${n} tools`,
+    subagentPill: (n) => `${n} subagent${n > 1 ? 's' : ''}`,
+    turnsCount: (n) => `${n} turn${n > 1 ? 's' : ''}`,
+    subagentPrefix: (label) => `[Subagent · ${label}]`,
+    phasePlanExec: (p, e) => `Plan ${p} + Exec ${e}`,
+    phasePlan: (p) => `Plan ${p}`,
+    phaseExec: (e) => `Exec ${e}`,
+    callsLabel: (n) => `${n} call${n > 1 ? 's' : ''}`,
+    toolsLabel: (n) => `${n} tool${n > 1 ? 's' : ''}`,
+    trendTitle: 'Usage Trend',
+    trendSummary: (sum, peak) => `Sum ${sum} · Peak ${peak}`,
+    trend7d: '7D',
+    trend24h: '24h',
+    trendTotal: 'Total',
+    trendBilled: 'Non-cached',
+    trendCost: 'Cost $',
+    tasksCount: (n) => `${n} task${n === 1 ? '' : 's'}`,
+    budgetDaily: 'Daily Budget',
+    budgetWeekly: 'Weekly Budget',
+    budgetSub: (used, limit, rem) => `${used} / ${limit} · ${rem} left`,
+    budgetOver: (used, limit) => `${used} / ${limit} · Over budget`,
+    pricingColModel: 'Model',
+    badgeCustom: 'Custom',
+    badgePromo: 'Promo',
+    badgeNew: 'New',
+    promoTip: (u) => `Promo rate through ${u}`,
+    saved: 'Saved',
+    saveFailed: 'Save failed',
+    pricingUpdated: 'Rates saved',
+    pricingReset: 'Defaults restored',
+    exported: (fmt) => `Exported ${fmt}`,
+    copiedMd: 'Markdown copied',
+    copyFailed: 'Copy failed',
+    unknownModel: 'Unknown Model',
+  },
+};
+
 const state = {
   tab: 'current',
+  range: 'all', // 'today' | '7d' | '30d' | 'all'
+  localePref: 'auto', // 'auto' | 'zh' | 'en'
   selectedConvId: null,
   activeConvId: null,
   userPinned: false,
@@ -19,6 +232,52 @@ const state = {
   pricingDirty: false,
   data: null,
 };
+
+function getLocale() {
+  if (state.localePref === 'zh' || state.localePref === 'en') return state.localePref;
+  const nav = String(navigator.language || 'zh').toLowerCase();
+  return nav.startsWith('zh') ? 'zh' : 'en';
+}
+
+function tr(key, ...args) {
+  const dict = I18N[getLocale()] || I18N.zh;
+  const val = dict[key];
+  return typeof val === 'function' ? val(...args) : (val ?? key);
+}
+
+function applyStaticI18n() {
+  const loc = getLocale();
+  document.documentElement.lang = loc === 'en' ? 'en' : 'zh-CN';
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.getAttribute('data-i18n');
+    if (key) el.textContent = tr(key);
+  });
+  const searchEl = document.getElementById('search-input');
+  if (searchEl) searchEl.placeholder = tr('searchPlaceholder');
+
+  const langBtn = document.getElementById('lang-btn');
+  if (langBtn) {
+    langBtn.textContent = loc === 'en' ? '中' : 'EN';
+    langBtn.title = tr('langBtnTitle');
+  }
+  const exportBtn = document.getElementById('export-btn');
+  if (exportBtn) exportBtn.title = tr('exportTitle');
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) settingsBtn.title = tr('settingsBtnTitle');
+  const refreshBtn = document.getElementById('refresh-btn');
+  if (refreshBtn) refreshBtn.title = tr('refreshBtnTitle');
+}
+
+function showToast(text) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => {
+    el.hidden = true;
+  }, 1800);
+}
 
 function getHostConvId() {
   const fromSdk = window.sidecar?.conversationId;
@@ -42,6 +301,12 @@ function fmt(n) {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 10_000) return `${(num / 1_000).toFixed(1)}k`;
   return num.toLocaleString('en-US');
+}
+
+function fmtWindow(n) {
+  const num = Number(n) || 1_000_000;
+  if (num >= 1_000_000) return `${Math.round(num / 1_000_000)}M`;
+  return `${Math.round(num / 1_000)}k`;
 }
 
 function fmtExact(n) {
@@ -68,11 +333,12 @@ function fmtTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('zh-CN', {
+  return d.toLocaleString(getLocale() === 'en' ? 'en-US' : 'zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
 }
 
@@ -82,6 +348,13 @@ function esc(s) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+function displayModelLabel(label, key) {
+  if (key === 'unknown' || label === 'Unknown Model' || label === '未识别模型') {
+    return tr('unknownModel');
+  }
+  return label || key || tr('unknownModel');
 }
 
 function renderSparkline(values, color) {
@@ -103,6 +376,46 @@ function renderSparkline(values, color) {
       <polyline fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />
     </svg>
   `;
+}
+
+function renderBudgetBar() {
+  const el = document.getElementById('budget-bar');
+  if (!el) return;
+  const stats = state.data?.budgetStats;
+  const cards = [];
+  if (stats?.daily?.enabled) {
+    cards.push({ label: tr('budgetDaily'), ...stats.daily });
+  }
+  if (stats?.weekly?.enabled) {
+    cards.push({ label: tr('budgetWeekly'), ...stats.weekly });
+  }
+  if (!cards.length) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = cards
+    .map((b) => {
+      const cls = b.status === 'danger' ? 'danger' : (b.status === 'warn' ? 'warn' : '');
+      const fillW = Math.min(100, Math.max(0, b.usedPct));
+      const sub = b.used > b.limit
+        ? tr('budgetOver', fmtUsd(b.used), fmtUsd(b.limit))
+        : tr('budgetSub', fmtUsd(b.used), fmtUsd(b.limit), fmtUsd(b.remaining));
+      return `
+        <div class="budget-card">
+          <div class="budget-head">
+            <span>${esc(b.label)}</span>
+            <span class="budget-pct ${cls}">${b.usedPct.toFixed(0)}%</span>
+          </div>
+          <div class="budget-track">
+            <div class="budget-fill ${cls}" style="width:${fillW.toFixed(1)}%"></div>
+          </div>
+          <div class="budget-sub">${esc(sub)}</div>
+        </div>
+      `;
+    })
+    .join('');
 }
 
 function renderCards(el, stats, sparkSeries = null) {
@@ -129,16 +442,14 @@ function renderCards(el, stats, sparkSeries = null) {
   const sCache = sparkSeries?.cache || null;
 
   const backendStale = state.data && state.data.totals && typeof state.data.totals.cost !== 'number';
-  const staleBanner = backendStale
-    ? `<div class="stale-banner">Sidecar 后端尚未重启，仍返回旧版接口数据；请在插件管理中关闭再重新启用 <b>token-tracker</b>（或重启 Antigravity）以加载费用统计。</div>`
-    : '';
+  const staleBanner = backendStale ? `<div class="stale-banner">${tr('staleBanner')}</div>` : '';
 
   el.innerHTML = `
     ${staleBanner}
     <div class="stat-card card-cost">
       <div class="stat-label">
-        <span class="card-cost-title"><span class="dot dot-cost"></span>估算 API 费用 (USD)</span>
-        ${unpricedCalls > 0 ? `<span class="unpriced-tag" title="早期日志中未记录模型的调用未计入费用">含 ${unpricedCalls} 次未识别</span>` : ''}
+        <span class="card-cost-title"><span class="dot dot-cost"></span>${esc(tr('costCardTitle'))}</span>
+        ${unpricedCalls > 0 ? `<span class="unpriced-tag" title="${esc(tr('unpricedTooltip'))}">${esc(tr('unpricedBadge', unpricedCalls))}</span>` : ''}
       </div>
       <div class="stat-mid">
         <div class="stat-value cost-value" title="In ${fmtUsdExact(inCost)} | Out ${fmtUsdExact(outCost)} | Cache ${fmtUsdExact(cacheCost)}">${fmtUsd(cost)}</div>
@@ -146,40 +457,40 @@ function renderCards(el, stats, sparkSeries = null) {
       </div>
       <div class="cost-sub-row">
         <span>In ${fmtUsd(inCost)} · Out ${fmtUsd(outCost)} · Cache ${fmtUsd(cacheCost)}</span>
-        ${cacheSaved >= 0.001 ? `<span class="cost-saved" title="相对无缓存全额 Input 节省的费用">缓存省 ${fmtUsd(cacheSaved)}</span>` : ''}
+        ${cacheSaved >= 0.001 ? `<span class="cost-saved" title="${esc(tr('cacheSavedTooltip'))}">${esc(tr('cacheSaved', fmtUsd(cacheSaved)))}</span>` : ''}
       </div>
     </div>
     <div class="stat-card card-total">
-      <div class="stat-label"><span class="dot dot-total"></span>总计 (Total)</div>
+      <div class="stat-label"><span class="dot dot-total"></span>${esc(tr('totalCard'))}</div>
       <div class="stat-mid">
         <div class="stat-value" title="${fmtExact(total)}">${fmt(total)}</div>
         ${renderSparkline(sTotal, 'var(--accent)')}
       </div>
-      <div class="stat-sub">非缓存 ${fmt(billed)}</div>
+      <div class="stat-sub">${esc(tr('nonCached', fmt(billed)))}</div>
     </div>
     <div class="stat-card card-input">
-      <div class="stat-label"><span class="dot dot-input"></span>输入 (Input)</div>
+      <div class="stat-label"><span class="dot dot-input"></span>${esc(tr('inputCard'))}</div>
       <div class="stat-mid">
         <div class="stat-value" title="${fmtExact(inp)}">${fmt(inp)}</div>
         ${renderSparkline(sInp, 'var(--input-c)')}
       </div>
-      <div class="stat-sub">占比 ${inPct}%${inCost > 0 ? ` · ${fmtUsd(inCost)}` : ''}</div>
+      <div class="stat-sub">${esc(tr('sharePct', inPct))}${inCost > 0 ? ` · ${fmtUsd(inCost)}` : ''}</div>
     </div>
     <div class="stat-card card-output">
-      <div class="stat-label"><span class="dot dot-output"></span>输出 (Output)</div>
+      <div class="stat-label"><span class="dot dot-output"></span>${esc(tr('outputCard'))}</div>
       <div class="stat-mid">
         <div class="stat-value" title="${fmtExact(out)}">${fmt(out)}</div>
         ${renderSparkline(sOut, 'var(--output-c)')}
       </div>
-      <div class="stat-sub">占比 ${outPct}%${outCost > 0 ? ` · ${fmtUsd(outCost)}` : ''}</div>
+      <div class="stat-sub">${esc(tr('sharePct', outPct))}${outCost > 0 ? ` · ${fmtUsd(outCost)}` : ''}</div>
     </div>
     <div class="stat-card card-cache">
-      <div class="stat-label"><span class="dot dot-cache"></span>缓存命中 (Cache)</div>
+      <div class="stat-label"><span class="dot dot-cache"></span>${esc(tr('cacheCard'))}</div>
       <div class="stat-mid">
         <div class="stat-value" title="${fmtExact(cache)}">${fmt(cache)}</div>
         ${renderSparkline(sCache, 'var(--cache-c)')}
       </div>
-      <div class="stat-sub">命中率 ${hitRate}%${cacheCost > 0 ? ` · ${fmtUsd(cacheCost)}` : ''}</div>
+      <div class="stat-sub">${esc(tr('hitRate', hitRate))}${cacheCost > 0 ? ` · ${fmtUsd(cacheCost)}` : ''}</div>
     </div>
   `;
 }
@@ -210,11 +521,11 @@ function renderModelBreakdown(el, breakdown, title, sectionKey) {
           <div class="model-row" title="${esc(tip)}">
             <div class="model-row-top">
               <span class="model-row-name">
-                ${esc(m.label)}
-                ${!m.priced ? '<span class="unpriced-tag">未定价</span>' : ''}
+                ${esc(displayModelLabel(m.label, m.modelKey))}
+                ${!m.priced ? `<span class="unpriced-tag">${esc(tr('unpricedTag'))}</span>` : ''}
               </span>
               <span class="model-row-stats">
-                <span class="model-row-tokens">${m.calls} 次 · ${fmt(m.totalTokens)}</span>
+                <span class="model-row-tokens">${esc(tr('callsSuffix', m.calls))} · ${fmt(m.totalTokens)}</span>
                 <span class="model-row-cost">${m.priced ? fmtUsd(m.cost) : '—'}</span>
               </span>
             </div>
@@ -232,11 +543,11 @@ function renderModelBreakdown(el, breakdown, title, sectionKey) {
       <span class="chart-title">
         <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         <span>${esc(title)}</span>
-        <span class="muted">${breakdown.length} 个模型</span>
+        <span class="muted">${esc(tr('modelCount', breakdown.length))}</span>
       </span>
       <span class="collapse-right">
         <span class="model-row-cost">${fmtUsd(totalCost)}</span>
-        <span class="muted">${expanded ? '收起' : '展开'}</span>
+        <span class="muted">${esc(expanded ? tr('collapse') : tr('expand'))}</span>
       </span>
     </button>
     ${expanded ? `<div class="model-list">${rowsHtml}</div>` : ''}
@@ -287,6 +598,16 @@ function renderContextChart(cur) {
   const peak = Math.max(...steps.map((s) => s.context), 1);
   const maxVal = peak * 1.12;
   const latest = steps[n - 1];
+  const ctxWindow = Number(cur.contextWindow) || 1_000_000;
+  const windowPct = Math.min(100, (latest.context / ctxWindow) * 100);
+  const windowPctStr = windowPct >= 10 ? windowPct.toFixed(1) : windowPct.toFixed(1);
+
+  let warnHtml = '';
+  if (windowPct >= 75) {
+    warnHtml = `<div class="ctx-warn is-danger">${esc(tr('ctxWarnHigh', windowPctStr))}</div>`;
+  } else if (windowPct >= 50 || latest.context >= 250_000) {
+    warnHtml = `<div class="ctx-warn">${esc(tr('ctxWarnMed', windowPctStr))}</div>`;
+  }
 
   const W = 320;
   const H = 92;
@@ -311,8 +632,8 @@ function renderContextChart(cur) {
   el.innerHTML = `
     <div class="chart-head">
       <div class="chart-title">
-        <span>上下文增长</span>
-        <span class="muted">当前 ${fmt(latest.context)} · 峰值 ${fmt(peak)}</span>
+        <span>${esc(tr('ctxTitle'))}</span>
+        <span class="muted">${esc(tr('ctxSummary', fmt(latest.context), fmtWindow(ctxWindow), windowPctStr, fmt(peak)))}</span>
       </div>
       <span class="ctx-step-badge" id="ctx-step-badge">${activeIdx + 1}/${n}</span>
     </div>
@@ -339,6 +660,7 @@ function renderContextChart(cur) {
       <input id="ctx-scrubber" class="ctx-scrubber" type="range" min="0" max="${n - 1}" value="${activeIdx}">
     </div>
     <div class="ctx-detail" id="ctx-detail"></div>
+    ${warnHtml}
   `;
 
   const updateActive = (idx, pin) => {
@@ -364,10 +686,10 @@ function renderContextChart(cur) {
     if (scrubber) scrubber.value = String(clamped);
     if (detail) {
       detail.innerHTML = `
-        <span class="ctx-chip"><b>第 ${s.step} 次</b>${s.modelLabel && s.modelKey !== 'unknown' ? ` · ${esc(s.modelLabel)}` : ''}</span>
-        ${s.cost > 0 ? `<span class="ctx-chip">费用 <b>${fmtUsd(s.cost)}</b></span>` : ''}
-        <span class="ctx-chip">上下文 <b>${fmt(s.context)}</b> (In ${fmt(s.inp)} + Cache ${fmt(s.cache)})</span>
-        <span class="ctx-chip">Out <b>${fmt(s.out)}</b>${s.tools ? ` · 工具 <b>${s.tools}</b>` : ''}</span>
+        <span class="ctx-chip"><b>${esc(tr('ctxStep', s.step))}</b>${s.modelLabel && s.modelKey !== 'unknown' ? ` · ${esc(s.modelLabel)}` : ''}</span>
+        ${s.cost > 0 ? `<span class="ctx-chip">${esc(tr('ctxCost'))} <b>${fmtUsd(s.cost)}</b></span>` : ''}
+        <span class="ctx-chip">${esc(tr('ctxContext'))} <b>${fmt(s.context)}</b> (In ${fmt(s.inp)} + Cache ${fmt(s.cache)})</span>
+        <span class="ctx-chip">Out <b>${fmt(s.out)}</b>${s.tools ? ` · ${esc(tr('ctxTools'))} <b>${s.tools}</b>` : ''}</span>
       `;
     }
   };
@@ -394,6 +716,14 @@ function formatModelsSummary(models) {
   return `${models.slice(0, 2).join(' / ')} +${models.length - 2}`;
 }
 
+function formatTurnPhase(t) {
+  if (t.planCalls > 0 && t.execCalls > 0) return tr('phasePlanExec', t.planCalls, t.execCalls);
+  if (t.planCalls > 0) return tr('phasePlan', t.planCalls);
+  if (t.execCalls > 0) return tr('phaseExec', t.execCalls);
+  if (t.phaseSummary) return t.phaseSummary;
+  return tr('callsLabel', t.modelCalls);
+}
+
 function renderCurrent() {
   const banner = document.getElementById('current-header');
   const cards = document.getElementById('current-cards');
@@ -407,25 +737,25 @@ function renderCurrent() {
   if (!cur) {
     if (!state.userPinned && hostConvId) {
       banner.innerHTML = `
-        <div class="conv-banner-title">当前会话推理中…</div>
+        <div class="conv-banner-title">${esc(tr('inferringTitle'))}</div>
         <div class="conv-banner-meta">
-          <span class="badge">当前会话</span>
+          <span class="badge">${esc(tr('liveBadge'))}</span>
           <span>ID: ${esc(hostConvId.slice(0, 8))}</span>
         </div>
       `;
       renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 });
-      renderModelBreakdown(modelsEl, [], '会话模型拆分', 'current');
+      renderModelBreakdown(modelsEl, [], tr('sessionModelsTitle'), 'current');
       renderContextChart(null);
       countEl.textContent = '';
-      turnsEl.innerHTML = `<div class="empty">Orchestrator 规划或首轮模型调用完成后将自动更新 Token 统计</div>`;
+      turnsEl.innerHTML = `<div class="empty">${esc(tr('inferringEmpty'))}</div>`;
       return;
     }
-    banner.innerHTML = `<div class="conv-banner-title">暂无当前任务记录</div><div class="conv-banner-meta">发送第一条消息后将自动统计 Token</div>`;
+    banner.innerHTML = `<div class="conv-banner-title">${esc(tr('noCurrentTitle'))}</div><div class="conv-banner-meta">${esc(tr('noCurrentSub'))}</div>`;
     renderCards(cards, { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 });
-    renderModelBreakdown(modelsEl, [], '会话模型拆分', 'current');
+    renderModelBreakdown(modelsEl, [], tr('sessionModelsTitle'), 'current');
     renderContextChart(null);
     countEl.textContent = '';
-    turnsEl.innerHTML = `<div class="empty">还没有模型调用记录</div>`;
+    turnsEl.innerHTML = `<div class="empty">${esc(tr('noCallsEmpty'))}</div>`;
     return;
   }
 
@@ -434,12 +764,12 @@ function renderCurrent() {
   banner.innerHTML = `
     <div class="conv-banner-title">${esc(cur.title)}</div>
     <div class="conv-banner-meta">
-      ${isLive ? '<span class="badge">当前会话</span>' : '<button class="link-btn" id="back-active">回到当前会话</button>'}
+      ${isLive ? `<span class="badge">${esc(tr('liveBadge'))}</span>` : `<button class="link-btn" id="back-active">${esc(tr('backActive'))}</button>`}
       ${modelSummary ? `<span class="model-pill">${esc(modelSummary)}</span>` : ''}
       <span class="meta-pill">ID ${esc(cur.id.slice(0, 8))}</span>
-      <span class="meta-pill">模型 ${cur.modelCalls} 次</span>
-      ${cur.toolCalls ? `<span class="meta-pill">工具 ${cur.toolCalls} 次</span>` : ''}
-      ${cur.subagentCount ? `<span class="meta-pill">子代理 ${cur.subagentCount}</span>` : ''}
+      <span class="meta-pill">${esc(tr('modelCallsPill', cur.modelCalls))}</span>
+      ${cur.toolCalls ? `<span class="meta-pill">${esc(tr('toolCallsPill', cur.toolCalls))}</span>` : ''}
+      ${cur.subagentCount ? `<span class="meta-pill">${esc(tr('subagentPill', cur.subagentCount))}</span>` : ''}
       <span class="meta-pill">${fmtTime(cur.updatedAt)}</span>
     </div>
   `;
@@ -454,12 +784,12 @@ function renderCurrent() {
 
   renderCards(cards, cur, stepSpark);
   const showCurrentModels = Array.isArray(cur.modelBreakdown) && (cur.modelBreakdown.length > 1 || (cur.modelBreakdown.length === 1 && cur.subagentCount > 0));
-  renderModelBreakdown(modelsEl, showCurrentModels ? cur.modelBreakdown : [], '会话模型拆分', 'current');
+  renderModelBreakdown(modelsEl, showCurrentModels ? cur.modelBreakdown : [], tr('sessionModelsTitle'), 'current');
   renderContextChart(cur);
-  countEl.textContent = `${cur.turns.length} 轮`;
+  countEl.textContent = tr('turnsCount', cur.turns.length);
 
   if (!cur.turns.length) {
-    turnsEl.innerHTML = `<div class="empty">暂无轮次记录</div>`;
+    turnsEl.innerHTML = `<div class="empty">${esc(tr('noTurnsEmpty'))}</div>`;
     return;
   }
 
@@ -468,10 +798,13 @@ function renderCurrent() {
     .map((t) => {
       const turnModels = formatModelsSummary(t.models);
       const hasCost = Number(t.cost) > 0;
+      const promptText = t.isSubagent
+        ? `${tr('subagentPrefix', t.subagentLabel || 'subagent')} ${t.prompt}`
+        : t.prompt;
       return `
         <div class="item">
           <div class="item-top">
-            <div class="item-title"><span class="turn-num">#${t.index}</span>${esc(t.prompt)}</div>
+            <div class="item-title"><span class="turn-num">#${t.index}</span>${esc(promptText)}</div>
             <div class="item-right">
               ${hasCost ? `<div class="item-cost" title="In ${fmtUsdExact(t.inputCost)} | Out ${fmtUsdExact(t.outputCost)} | Cache ${fmtUsdExact(t.cacheCost)}">${fmtUsd(t.cost)}</div>` : ''}
               <div class="item-total" title="${fmtExact(t.totalTokens)}">${fmt(t.totalTokens)}</div>
@@ -482,8 +815,8 @@ function renderCurrent() {
             <span>In: ${fmt(t.inputTokens)}</span>
             <span>Out: ${fmt(t.outputTokens)}</span>
             <span>Cache: ${fmt(t.cacheReadTokens)}</span>
-            <span>${t.phaseSummary ? esc(t.phaseSummary) : `${t.modelCalls} 次调用`}</span>
-            ${t.toolCalls ? `<span>工具 ${t.toolCalls} 次</span>` : ''}
+            <span>${esc(formatTurnPhase(t))}</span>
+            ${t.toolCalls ? `<span>${esc(tr('toolsLabel', t.toolCalls))}</span>` : ''}
             <span>${fmtTime(t.createdAt)}</span>
           </div>
           ${renderBar(t.inputTokens, t.outputTokens, t.cacheReadTokens)}
@@ -554,18 +887,18 @@ function renderTrendChart() {
   el.innerHTML = `
     <div class="chart-head">
       <div class="chart-title">
-        <span>消耗趋势</span>
-        <span class="muted">合计 ${fmtVal(sumVal)} · 峰值 ${fmtVal(maxVal)}</span>
+        <span>${esc(tr('trendTitle'))}</span>
+        <span class="muted">${esc(tr('trendSummary', fmtVal(sumVal), fmtVal(maxVal)))}</span>
       </div>
       <div class="chart-controls">
         <div class="seg">
-          <button class="seg-btn ${state.chartMode === 'daily' ? 'active' : ''}" data-chart-mode="daily">7天</button>
-          <button class="seg-btn ${state.chartMode === 'hourly' ? 'active' : ''}" data-chart-mode="hourly">24h</button>
+          <button class="seg-btn ${state.chartMode === 'daily' ? 'active' : ''}" data-chart-mode="daily">${esc(tr('trend7d'))}</button>
+          <button class="seg-btn ${state.chartMode === 'hourly' ? 'active' : ''}" data-chart-mode="hourly">${esc(tr('trend24h'))}</button>
         </div>
         <div class="seg">
-          <button class="seg-btn ${state.chartMetric === 'total' ? 'active' : ''}" data-chart-metric="total">总计</button>
-          <button class="seg-btn ${state.chartMetric === 'billed' ? 'active' : ''}" data-chart-metric="billed">非缓存</button>
-          <button class="seg-btn ${state.chartMetric === 'cost' ? 'active' : ''}" data-chart-metric="cost">费用$</button>
+          <button class="seg-btn ${state.chartMetric === 'total' ? 'active' : ''}" data-chart-metric="total">${esc(tr('trendTotal'))}</button>
+          <button class="seg-btn ${state.chartMetric === 'billed' ? 'active' : ''}" data-chart-metric="billed">${esc(tr('trendBilled'))}</button>
+          <button class="seg-btn ${state.chartMetric === 'cost' ? 'active' : ''}" data-chart-metric="cost">${esc(tr('trendCost'))}</button>
         </div>
       </div>
     </div>
@@ -608,20 +941,31 @@ function renderHistory() {
   const cards = document.getElementById('global-cards');
   const modelsEl = document.getElementById('global-models');
   const listEl = document.getElementById('history-list');
+  const rangeSummaryEl = document.getElementById('range-summary');
   const totals = state.data?.totals || { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 };
-  const daily = state.data?.series?.daily;
-  const dailySpark = Array.isArray(daily) && daily.length >= 2 ? {
-    cost: daily.map((d) => d.cost || 0),
-    total: daily.map((d) => d.totalTokens),
-    inp: daily.map((d) => d.inputTokens),
-    out: daily.map((d) => d.outputTokens),
-    cache: daily.map((d) => d.cacheReadTokens),
+
+  document.querySelectorAll('#range-bar [data-range]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.range === state.range);
+  });
+
+  renderBudgetBar();
+
+  const sparkBuckets = state.range === 'today' ? state.data?.series?.hourly : state.data?.series?.daily;
+  const spark = Array.isArray(sparkBuckets) && sparkBuckets.length >= 2 ? {
+    cost: sparkBuckets.map((d) => d.cost || 0),
+    total: sparkBuckets.map((d) => d.totalTokens),
+    inp: sparkBuckets.map((d) => d.inputTokens),
+    out: sparkBuckets.map((d) => d.outputTokens),
+    cache: sparkBuckets.map((d) => d.cacheReadTokens),
   } : null;
-  renderCards(cards, totals, dailySpark);
+
+  renderCards(cards, totals, spark);
   renderTrendChart();
-  renderModelBreakdown(modelsEl, state.data?.modelBreakdown || [], '模型费用分布', 'global');
+  renderModelBreakdown(modelsEl, state.data?.modelBreakdown || [], tr('globalModelsTitle'), 'global');
 
   let items = [...(state.data?.conversations || [])];
+  if (rangeSummaryEl) rangeSummaryEl.textContent = tr('tasksCount', items.length);
+
   const q = state.search.trim().toLowerCase();
   if (q) {
     items = items.filter((c) => {
@@ -641,7 +985,7 @@ function renderHistory() {
   }
 
   if (!items.length) {
-    listEl.innerHTML = `<div class="empty">没有匹配的任务记录</div>`;
+    listEl.innerHTML = `<div class="empty">${esc(tr('noMatchesEmpty'))}</div>`;
     return;
   }
 
@@ -657,7 +1001,7 @@ function renderHistory() {
       return `
         <div class="item clickable ${isSelected ? 'is-active' : ''}" data-conv-id="${esc(c.id)}">
           <div class="item-top">
-            <div class="item-title">${isLive ? '<span class="badge">当前</span> ' : ''}${esc(c.title)}</div>
+            <div class="item-title">${isLive ? `<span class="badge">${esc(tr('liveShort'))}</span> ` : ''}${esc(c.title)}</div>
             <div class="item-right">
               ${hasCost ? `<div class="item-cost" title="In ${fmtUsdExact(c.inputCost)} | Out ${fmtUsdExact(c.outputCost)} | Cache ${fmtUsdExact(c.cacheCost)}">${fmtUsd(c.cost)}</div>` : ''}
               <div class="item-total" title="${fmtExact(c.totalTokens)}">${fmt(c.totalTokens)}</div>
@@ -668,7 +1012,7 @@ function renderHistory() {
             <span>In: ${fmt(c.inputTokens)}</span>
             <span>Out: ${fmt(c.outputTokens)}</span>
             <span>Cache: ${fmt(c.cacheReadTokens)}${typeof c.cacheHitRate === 'number' ? ` (${c.cacheHitRate}%)` : ''}</span>
-            <span>${c.turnCount} 轮 / ${c.modelCalls} 次</span>
+            <span>${esc(tr('turnsCount', c.turnCount))} / ${esc(tr('callsSuffix', c.modelCalls))}</span>
             <span>${fmtTime(c.updatedAt)}</span>
           </div>
           ${renderBar(c.inputTokens, c.outputTokens, c.cacheReadTokens)}
@@ -707,15 +1051,23 @@ function renderPricingTable() {
 
   const rowsHtml = catalog
     .map((m) => {
-      const badge = m.isCustom
-        ? '<span class="pricing-badge is-custom">自定义</span>'
-        : (m.isPromoActive ? `<span class="pricing-badge" title="促销价截至 ${esc(m.promo?.until || '')}">促销</span>` : '');
+      let badge = '';
+      if (m.isCustom) {
+        badge = `<span class="pricing-badge is-custom">${esc(tr('badgeCustom'))}</span>`;
+      } else if (m.isUnpriced) {
+        badge = `<span class="pricing-badge is-new">${esc(tr('badgeNew'))}</span>`;
+      } else if (m.isPromoActive) {
+        badge = `<span class="pricing-badge" title="${esc(tr('promoTip', m.promo?.until || ''))}">${esc(tr('badgePromo'))}</span>`;
+      }
+      const inVal = m.effective?.input ?? '';
+      const outVal = m.effective?.output ?? '';
+      const cacheVal = m.effective?.cacheRead ?? '';
       return `
         <div class="pricing-row" data-model-key="${esc(m.key)}">
           <div class="pricing-model-name" title="${esc(m.key)}">${esc(m.label)}${badge}</div>
-          <input class="pricing-input" data-field="input" type="number" step="0.01" min="0" value="${m.effective.input}">
-          <input class="pricing-input" data-field="output" type="number" step="0.01" min="0" value="${m.effective.output}">
-          <input class="pricing-input" data-field="cacheRead" type="number" step="0.005" min="0" value="${m.effective.cacheRead}">
+          <input class="pricing-input" data-field="input" type="number" step="0.01" min="0" placeholder="—" value="${inVal}">
+          <input class="pricing-input" data-field="output" type="number" step="0.01" min="0" placeholder="—" value="${outVal}">
+          <input class="pricing-input" data-field="cacheRead" type="number" step="0.005" min="0" placeholder="—" value="${cacheVal}">
         </div>
       `;
     })
@@ -723,7 +1075,7 @@ function renderPricingTable() {
 
   tableEl.innerHTML = `
     <div class="pricing-head">
-      <span>模型</span>
+      <span>${esc(tr('pricingColModel'))}</span>
       <span>Input</span>
       <span>Output</span>
       <span>Cache</span>
@@ -741,12 +1093,19 @@ function renderPricingTable() {
 function renderSettings() {
   const h = state.data?.settings?.hook;
   const p = state.data?.settings?.pricing;
+  const b = state.data?.settings?.budget;
   if (h) {
     document.getElementById('opt-session-total').checked = Boolean(h.showSessionTotal);
     document.getElementById('opt-hook-cost').checked = h.showCost !== false;
   }
   if (p) {
     document.getElementById('opt-promo-pricing').checked = p.usePromoPricing !== false;
+  }
+  if (b) {
+    const dailyEl = document.getElementById('opt-budget-daily');
+    const weeklyEl = document.getElementById('opt-budget-weekly');
+    if (dailyEl && document.activeElement !== dailyEl) dailyEl.value = b.dailyUsd > 0 ? String(b.dailyUsd) : '';
+    if (weeklyEl && document.activeElement !== weeklyEl) weeklyEl.value = b.weeklyUsd > 0 ? String(b.weeklyUsd) : '';
   }
   renderPricingTable();
 }
@@ -760,7 +1119,7 @@ function showSettingsStatus(text) {
   }, 1800);
 }
 
-async function postSettings(payload, okMessage = '已保存') {
+async function postSettings(payload, okMessage = tr('saved')) {
   try {
     const res = await apiFetch('/api/settings', {
       method: 'POST',
@@ -773,6 +1132,8 @@ async function postSettings(payload, okMessage = '已保存') {
         state.data.settings = {
           hook: updated.hook,
           pricing: updated.pricing,
+          budget: updated.budget,
+          ui: updated.ui,
         };
         if (updated.pricingCatalog) {
           state.data.pricingCatalog = updated.pricingCatalog;
@@ -782,14 +1143,16 @@ async function postSettings(payload, okMessage = '已保存') {
       showSettingsStatus(okMessage);
       await fetchTokens();
     } else {
-      showSettingsStatus('保存失败');
+      showSettingsStatus(tr('saveFailed'));
     }
   } catch {
-    showSettingsStatus('保存失败');
+    showSettingsStatus(tr('saveFailed'));
   }
 }
 
 async function saveToggleSettings() {
+  const dailyVal = Number(document.getElementById('opt-budget-daily')?.value || 0);
+  const weeklyVal = Number(document.getElementById('opt-budget-weekly')?.value || 0);
   await postSettings({
     hook: {
       showSessionTotal: document.getElementById('opt-session-total').checked,
@@ -798,6 +1161,10 @@ async function saveToggleSettings() {
     pricing: {
       usePromoPricing: document.getElementById('opt-promo-pricing').checked,
     },
+    budget: {
+      dailyUsd: Number.isFinite(dailyVal) && dailyVal >= 0 ? dailyVal : 0,
+      weeklyUsd: Number.isFinite(weeklyVal) && weeklyVal >= 0 ? weeklyVal : 0,
+    },
   });
 }
 
@@ -805,14 +1172,18 @@ async function savePricingOverrides() {
   const catalog = state.data?.pricingCatalog || [];
   const byKey = new Map(catalog.map((m) => [m.key, m]));
   const overrides = {};
-  const existingOverrides = state.data?.settings?.pricing?.overrides || {};
   const usePromo = document.getElementById('opt-promo-pricing').checked;
 
   document.querySelectorAll('#pricing-table .pricing-row').forEach((row) => {
     const key = row.dataset.modelKey;
-    const input = Number(row.querySelector('[data-field="input"]')?.value);
-    const output = Number(row.querySelector('[data-field="output"]')?.value);
-    const cacheRead = Number(row.querySelector('[data-field="cacheRead"]')?.value);
+    const rawIn = row.querySelector('[data-field="input"]')?.value ?? '';
+    const rawOut = row.querySelector('[data-field="output"]')?.value ?? '';
+    const rawCache = row.querySelector('[data-field="cacheRead"]')?.value ?? '';
+    if (rawIn === '' && rawOut === '' && rawCache === '') return;
+
+    const input = Number(rawIn);
+    const output = Number(rawOut);
+    const cacheRead = rawCache === '' ? 0 : Number(rawCache);
     if (!Number.isFinite(input) || !Number.isFinite(output) || !Number.isFinite(cacheRead)) return;
     if (input < 0 || output < 0 || cacheRead < 0) return;
 
@@ -836,7 +1207,7 @@ async function savePricingOverrides() {
         overrides,
       },
     },
-    '单价已更新',
+    tr('pricingUpdated'),
   );
 }
 
@@ -849,8 +1220,61 @@ async function resetPricingOverrides() {
         overrides: {},
       },
     },
-    '已恢复官方默认',
+    tr('pricingReset'),
   );
+}
+
+async function handleExport(mode) {
+  const menu = document.getElementById('export-menu');
+  const btn = document.getElementById('export-btn');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+
+  const format = mode === 'csv' ? 'csv' : 'md';
+  try {
+    const res = await apiFetch(`/api/export?format=${format}&range=${encodeURIComponent(state.range)}`);
+    if (!res.ok) throw new Error('export failed');
+    const text = await res.text();
+
+    if (mode === 'copy') {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(tr('copiedMd'));
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(tr('copiedMd'));
+      }
+      return;
+    }
+
+    const mime = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/markdown;charset=utf-8';
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `token-tracker-${state.range}-${new Date().toISOString().slice(0, 10)}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(tr('exported', format.toUpperCase()));
+  } catch {
+    showToast(tr('copyFailed'));
+  }
+}
+
+function renderAll() {
+  applyStaticI18n();
+  renderCurrent();
+  renderHistory();
+  renderSettings();
 }
 
 async function fetchTokens() {
@@ -858,19 +1282,21 @@ async function fetchTokens() {
   const targetId = state.userPinned
     ? state.selectedConvId
     : (hostConvId || state.selectedConvId || '');
-  const qs = targetId ? `?conversationId=${encodeURIComponent(targetId)}` : '';
+  const params = new URLSearchParams();
+  if (targetId) params.set('conversationId', targetId);
+  params.set('range', state.range);
+
   try {
-    const res = await apiFetch(`/api/tokens${qs}`);
+    const res = await apiFetch(`/api/tokens?${params.toString()}`);
     if (!res.ok) return;
     let data = await res.json();
 
-    // Standalone/global mode (no conversationId in iframe URL): follow the newest conversation
-    // even if backend activeConversationId is null (compatibility with un-restarted sidecar).
     if (!state.userPinned && !hostConvId) {
       const latestId = data.activeConversationId || data.conversations?.[0]?.id || '';
       if (latestId && data.current?.id !== latestId) {
         state.selectedConvId = latestId;
-        const retry = await apiFetch(`/api/tokens?conversationId=${encodeURIComponent(latestId)}`);
+        params.set('conversationId', latestId);
+        const retry = await apiFetch(`/api/tokens?${params.toString()}`);
         if (retry.ok) data = await retry.json();
       } else if (latestId) {
         state.selectedConvId = latestId;
@@ -880,10 +1306,11 @@ async function fetchTokens() {
     }
 
     state.data = data;
+    if (data.settings?.ui?.locale) {
+      state.localePref = data.settings.ui.locale;
+    }
     state.activeConvId = hostConvId || data.activeConversationId || data.conversations?.[0]?.id || null;
-    renderCurrent();
-    renderHistory();
-    renderSettings();
+    renderAll();
   } catch {
     // ignore transient poll errors
   }
@@ -891,6 +1318,46 @@ async function fetchTokens() {
 
 document.querySelectorAll('.tab').forEach((btn) => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+document.querySelectorAll('#range-bar [data-range]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const nextRange = btn.dataset.range;
+    if (!nextRange || nextRange === state.range) return;
+    state.range = nextRange;
+    fetchTokens();
+  });
+});
+
+document.getElementById('lang-btn').addEventListener('click', async () => {
+  const nextLocale = getLocale() === 'en' ? 'zh' : 'en';
+  state.localePref = nextLocale;
+  renderAll();
+  await postSettings({ ui: { locale: nextLocale } });
+});
+
+document.getElementById('export-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('export-menu');
+  const btn = document.getElementById('export-btn');
+  const nextHidden = !menu.hidden;
+  menu.hidden = nextHidden;
+  btn.setAttribute('aria-expanded', String(!nextHidden));
+});
+
+document.querySelectorAll('#export-menu [data-export]').forEach((btn) => {
+  btn.addEventListener('click', () => handleExport(btn.dataset.export));
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.export-wrap')) {
+    const menu = document.getElementById('export-menu');
+    const btn = document.getElementById('export-btn');
+    if (menu && !menu.hidden) {
+      menu.hidden = true;
+      btn?.setAttribute('aria-expanded', 'false');
+    }
+  }
 });
 
 document.getElementById('refresh-btn').addEventListener('click', fetchTokens);
@@ -911,6 +1378,8 @@ document.getElementById('settings-btn').addEventListener('click', () => {
 document.getElementById('opt-session-total').addEventListener('change', saveToggleSettings);
 document.getElementById('opt-hook-cost').addEventListener('change', saveToggleSettings);
 document.getElementById('opt-promo-pricing').addEventListener('change', saveToggleSettings);
+document.getElementById('opt-budget-daily').addEventListener('change', saveToggleSettings);
+document.getElementById('opt-budget-weekly').addEventListener('change', saveToggleSettings);
 document.getElementById('save-pricing-btn').addEventListener('click', savePricingOverrides);
 document.getElementById('reset-pricing-btn').addEventListener('click', resetPricingOverrides);
 document.getElementById('search-input').addEventListener('input', (e) => {
@@ -922,6 +1391,7 @@ document.getElementById('sort-select').addEventListener('change', (e) => {
   renderHistory();
 });
 
+applyStaticI18n();
 fetchTokens();
 setInterval(() => {
   if (!document.hidden) fetchTokens();

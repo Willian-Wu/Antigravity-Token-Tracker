@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { parseTranscript, readSettings } from '../lib/tokens.mjs';
+import { parseConversationWithChildren, readSettings } from '../lib/tokens.mjs';
 
 function fmt(n) {
   const num = Number(n) || 0;
@@ -28,30 +28,40 @@ function main() {
   }
 
   const settings = readSettings();
+  const isEn = settings.ui?.locale === 'en';
   const convId = payload.conversationId || 'current';
   const transcriptPath = payload.transcriptPath;
-  const cur = transcriptPath ? parseTranscript(convId, transcriptPath, settings.pricing) : null;
-  const lastTurn = cur?.turns?.[cur.turns.length - 1] || null;
+  const cur = transcriptPath ? parseConversationWithChildren(convId, transcriptPath, settings.pricing) : null;
+  const lastMainTurn = cur?.turns
+    ? ([...cur.turns].reverse().find((t) => !t.isSubagent) || cur.turns[cur.turns.length - 1] || null)
+    : null;
   const showCost = settings.hook.showCost !== false;
 
   const parts = [];
-  if (lastTurn) {
-    const costTag = showCost && lastTurn.cost > 0 ? ` · ${fmtUsdMd(lastTurn.cost)}` : '';
-    const modelTag = lastTurn.models?.length ? ` · ${lastTurn.models.join('/')}` : '';
-    parts.push(`本轮 ${fmt(lastTurn.totalTokens)}${costTag} (In ${fmt(lastTurn.inputTokens)} / Out ${fmt(lastTurn.outputTokens)} / Cache ${fmt(lastTurn.cacheReadTokens)}${modelTag})`);
+  if (lastMainTurn) {
+    const costTag = showCost && lastMainTurn.cost > 0 ? ` · ${fmtUsdMd(lastMainTurn.cost)}` : '';
+    const modelTag = lastMainTurn.models?.length ? ` · ${lastMainTurn.models.join('/')}` : '';
+    const turnLabel = isEn ? 'Turn' : '本轮';
+    parts.push(`${turnLabel} ${fmt(lastMainTurn.totalTokens)}${costTag} (In ${fmt(lastMainTurn.inputTokens)} / Out ${fmt(lastMainTurn.outputTokens)} / Cache ${fmt(lastMainTurn.cacheReadTokens)}${modelTag})`);
   } else if (cur) {
     const costTag = showCost && cur.cost > 0 ? ` (${fmtUsdMd(cur.cost)})` : '';
-    parts.push(`本会话 ${fmt(cur.totalTokens)}${costTag}`);
+    const sessLabel = isEn ? 'Session' : '本会话';
+    parts.push(`${sessLabel} ${fmt(cur.totalTokens)}${costTag}`);
   } else {
-    parts.push('Token 统计');
+    parts.push(isEn ? 'Token Stats' : 'Token 统计');
   }
 
-  if (settings.hook.showSessionTotal && cur && lastTurn) {
+  if (settings.hook.showSessionTotal && cur && lastMainTurn) {
     const curCostTag = showCost && cur.cost > 0 ? ` (${fmtUsdMd(cur.cost)})` : '';
-    parts.push(`会话累计 ${fmt(cur.totalTokens)}${curCostTag}`);
+    const subTag = cur.subagentCount > 0
+      ? (isEn ? ` incl. ${cur.subagentCount} subagent${cur.subagentCount > 1 ? 's' : ''}` : ` · 含 ${cur.subagentCount} 子代理`)
+      : '';
+    const totalLabel = isEn ? 'Session total' : '会话累计';
+    parts.push(`${totalLabel} ${fmt(cur.totalTokens)}${curCostTag}${subTag}`);
   }
 
-  const md = `> 📊 **${parts[0]}**${parts.length > 1 ? ` · ${parts.slice(1).join(' · ')}` : ''} · [查看详情](sidecar://token-tracker/token_panel/)`;
+  const linkLabel = isEn ? 'Details' : '查看详情';
+  const md = `> 📊 **${parts[0]}**${parts.length > 1 ? ` · ${parts.slice(1).join(' · ')}` : ''} · [${linkLabel}](sidecar://token-tracker/token_panel/)`;
 
   process.stdout.write(
     JSON.stringify({

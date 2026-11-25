@@ -1,11 +1,11 @@
 {
   "name": "token-tracker",
   "displayName": "Token Tracker",
-  "description": "Track and visualize token consumption (input, output, cache read) for each Antigravity task and conversation.",
+  "description": "Track and visualize token consumption (input, output, cache read) and estimated API cost (USD) per model, task, and conversation in Antigravity.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
-    "Show me how many tokens this conversation has used so far",
-    "Which of my recent tasks consumed the most tokens?",
+    "Show me how many tokens and how much USD API cost this conversation has used so far",
+    "Which of my recent tasks and models consumed the most API budget this week?",
     "Open the Token Tracker side panel"
   ]
 }
